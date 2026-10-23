@@ -57,6 +57,13 @@ With a free TMDB key, the home screen adds **For You**: trending movies and show
 TV already has, with three tabs (Explore, Movies, Shows) and fresh picks every hour. Each card shows the genre,
 runtime (or seasons) and the app it's on.
 
+- **More than three:** keep pressing right past the third card and more titles slide in (up to 12 per tab).
+- **The story:** rest on a card for a moment and its synopsis rises over the picture.
+
+| Synopsis on a held card | More titles slide in |
+| --- | --- |
+| ![A card showing its synopsis](docs/screenshots/picks-synopsis.png) | ![More picks after sliding right](docs/screenshots/picks-more.png) |
+
 ![Trending picks over the movie's art](docs/screenshots/picks-movie-art.png)
 
 **Get a key** (free, two minutes): create an account at [themoviedb.org](https://www.themoviedb.org), open

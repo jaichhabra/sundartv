@@ -141,6 +141,15 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private int tab, topIndex, cardIndex;
     private int widgetIndex;    // with TalkBack on, the drawer's weather (0) or quotes (1) card can take the focus
     private List<Recs.Pick> cards = new ArrayList<>();
+    // Everything the tab can show (up to Recs.MORE): the three cards are a window on it that slides past either end.
+    private List<Recs.Pick> allCards = new ArrayList<>();
+    private int cardOffset;
+    // Held on a card for a moment, its synopsis rises over the picture: since when it's held, and how far it's up.
+    private static final long EXPAND_MS = 1500;
+    private long cardFocusAt;
+    private final Spring expand = new Spring(0.3f, 0.9f, 0);
+    private final Map<String, StaticLayout> synopses = new HashMap<>();
+    private TextPaint synopsisPaint;
     // The three tabs, then the round buttons at the top right (up to HomeApps.MAX_TOP).
     private final Spring[] topFocus = new Spring[3 + HomeApps.MAX_TOP];
     private final RectF[] topRects = new RectF[3 + HomeApps.MAX_TOP];
@@ -608,6 +617,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         lCardTitle = Ui.text(Ui.semibold, 31 * k, L_INK);
         lCardTitle.setLetterSpacing(0.012f);
         lCardMeta = Ui.text(Ui.medium, 25 * k, L_DIM);
+        synopsisPaint = new TextPaint(Ui.text(Ui.regular, 25 * k, 0xF2FFFFFF));
+        synopsisPaint.setShadowLayer(10 * k, 0, 1 * k, 0x80000000);
+        synopses.clear();
         lQuote = Ui.numbers(Ui.regular, 21 * k, L_FAINT);
         lTip = Ui.text(Ui.semibold, 25 * k, L_INK);
         lTip.setTextAlign(Paint.Align.CENTER);
@@ -684,6 +696,11 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         boolean heroFading = tickHeroFade(up);
         boolean bgFading = tickBackgroundFade(up);
         boolean nightMoving = tickNight(up);
+        // Held on a card for EXPAND_MS: its synopsis rises (frames keep coming while it waits, so it's on time).
+        boolean onCard = zone == Z_CARDS && !sheetOpen && !drawerOpen && cardIndex < cards.size();
+        boolean holding = onCard && up - cardFocusAt >= EXPAND_MS, waiting = onCard && !holding;
+        expand.target = holding ? 1 : 0;
+        if (expand.step(dt)) heroMoving = true;
 
         if (drawerMoving || sheetMoving || motionDirty) updateMotion();
         // Opening and closing the drawer only moves the cached layers: redrawing the glass on every frame made the TV
@@ -718,7 +735,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         // Busy: something is moving, or the sheet or the drawer is open.
         boolean busy = tilesMoving || statusMoving || heroMoving || drawerItemsMoving || gridMoving || drawerMoving
                 || sheetMoving || toastFading || heroFading || bgFading || nightMoving || sheetOpen || sheet.value > 0.001f
-                || drawerOpen || drawer.value > 0.001f || toast != null || !toasts.isEmpty() || weatherMoving;
+                || drawerOpen || drawer.value > 0.001f || toast != null || !toasts.isEmpty() || weatherMoving || waiting;
         idle = !busy;
         if (busy) Choreographer.getInstance().postFrameCallback(this);
         else Choreographer.getInstance().postFrameCallbackDelayed(this, 1000);
@@ -2765,18 +2782,28 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         heroDirty = statusDirty = true;
     }
 
-    /** The three cards of the current tab (Explore, Movies, Shows) and the background taken from the first one. */
+    /**
+     * The three cards of the current tab (Explore, Movies, Shows): a window on everything the tab can show, starting at
+     * cardOffset. The background is taken from the first card.
+     */
     private void updateCards() {
-        List<Recs.Pick> list = recs.now(TAB_KIND[tab]);
-        if (!samePicks(list, cards)) {
-            cards = list;
-            cardIndex = Math.min(cardIndex, Math.max(0, list.size() - 1));
-            if (zone == Z_CARDS && list.isEmpty()) {
+        List<Recs.Pick> list = recs.all(TAB_KIND[tab]);
+        if (!samePicks(list, allCards)) allCards = list;
+        cardOffset = Math.max(0, Math.min(cardOffset, list.size() - 3));
+        List<Recs.Pick> window = new ArrayList<>(list.subList(cardOffset, Math.min(cardOffset + 3, list.size())));
+        if (!samePicks(window, cards)) {
+            cards = window;
+            cardIndex = Math.min(cardIndex, Math.max(0, window.size() - 1));
+            if (zone == Z_CARDS && window.isEmpty()) {
                 zone = Z_SHELF;
                 retarget(false);
             }
         }
         for (Recs.Pick p : recs.wanted()) recs.backdrop(p);   // all three tabs preloaded: switching tabs is instant
+        // The window's neighbours load ahead, so a card sliding in is never gray.
+        for (Recs.Pick p : cards) recs.backdrop(p);
+        if (cardOffset + 3 < list.size()) recs.backdrop(list.get(cardOffset + 3));
+        if (cardOffset > 0) recs.backdrop(list.get(cardOffset - 1));
         Backdrop b = cards.isEmpty() ? null : recs.backdrop(cards.get(0));
         if (cards.isEmpty() || b != null) showBackdrop(b);
         heroDirty = true;
@@ -2786,6 +2813,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private void selectTab(int index) {
         if (index == tab) return;
         tab = index;
+        cardOffset = 0;
         updateCards();
         heroDirty = true;
     }
@@ -2978,6 +3006,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             c.restore();
         }
         if (p == null) return;
+        if (i == cardIndex && expand.value > 0.01f && p.overview != null && !p.overview.isEmpty()) {
+            drawSynopsis(c, p, i, Ui.clamp(expand.value), r);
+        }
         fitPaint.set(lCardTitle);
         c.drawText(TextUtils.ellipsize(p.title, fitPaint, bw, TextUtils.TruncateAt.END).toString(), base.left, base.bottom + 46 * k, lCardTitle);
         if (i == 0 && p.meta != null && !p.meta.isEmpty()) {
@@ -2985,6 +3016,43 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             c.drawText(TextUtils.ellipsize(p.meta, fitPaint, bw, TextUtils.TruncateAt.END).toString(), base.left, base.bottom + 80 * k, lCardMeta);
         }
     }
+
+    /**
+     * The held card's synopsis: a dark veil rises from the bottom of the picture (inside its rounded corners) and the
+     * text fades in on it, a few lines (more on the tall cards, which are narrower). `cell` is the card as drawn.
+     */
+    private void drawSynopsis(Canvas c, Recs.Pick p, int i, float e, float r) {
+        float pad = 26 * k, width = cell.width() - 2 * pad;
+        String key = Recs.key(p) + "|" + Math.round(width) + "|" + Ui.generation;
+        StaticLayout text = synopses.get(key);
+        if (text == null) {
+            if (synopses.size() > 40) synopses.clear();
+            text = StaticLayout.Builder.obtain(p.overview, 0, p.overview.length(), synopsisPaint, Math.max(1, Math.round(width)))
+                    .setMaxLines(i == 0 ? 4 : 7).setEllipsize(TextUtils.TruncateAt.END)
+                    .setLineSpacing(0, 1.12f).setIncludePad(false).build();
+            synopses.put(key, text);
+        }
+        float veil = Math.min(cell.height(), text.getHeight() + 2 * pad + 90 * k);
+        c.save();
+        tmp.set(cell);
+        Path clip = synopsisClip;
+        clip.reset();
+        clip.addRoundRect(tmp, r, r, Path.Direction.CW);
+        c.clipPath(clip);
+        fill.setColor(0xFF000000);
+        fill.setShader(new LinearGradient(0, cell.bottom - veil, 0, cell.bottom,
+                new int[] {0, Ui.alpha(0xFF05070D, 0.7f * e), Ui.alpha(0xFF05070D, 0.88f * e)}, new float[] {0, 0.35f, 1},
+                Shader.TileMode.CLAMP));
+        c.drawRect(cell.left, cell.bottom - veil, cell.right, cell.bottom, fill);
+        fill.setShader(null);
+        c.translate(cell.left + pad, cell.bottom - pad - text.getHeight() + (1 - e) * 24 * k);
+        synopsisPaint.setAlpha(Math.round(242 * e));
+        text.draw(c);
+        synopsisPaint.setAlpha(242);
+        c.restore();
+    }
+
+    private final Path synopsisClip = new Path();
 
     /**
      * The round buttons (Live TV, HDMI Inputs and Settings by default): icon-only glass circles (light by day, smoked at
@@ -3036,7 +3104,15 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 break;
             case Z_CARDS:
                 if (dx != 0) {
-                    int next = Math.max(0, Math.min(cards.size() - 1, cardIndex + dx));
+                    int next = cardIndex + dx;
+                    if ((next >= cards.size() && cardOffset + cards.size() < allCards.size()) || (next < 0 && cardOffset > 0)) {
+                        // Past either end: the titles slide one place, the focus stays on the edge card.
+                        cardOffset += dx;
+                        updateCards();
+                        heroDirty = true;
+                        break;
+                    }
+                    next = Math.max(0, Math.min(cards.size() - 1, next));
                     if (next == cardIndex) return true;
                     cardIndex = next;
                 } else if (dy < 0) {
@@ -3069,6 +3145,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             default:
                 return false;
         }
+        // Every move restarts the wait before a card shows its synopsis.
+        cardFocusAt = SystemClock.uptimeMillis();
+        expand.snap(0);
         retarget(false);
         click.move();
         return true;
