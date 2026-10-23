@@ -171,6 +171,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private int skyKind = WeatherSky.NONE, skyBuilding = WeatherSky.NONE;
     private final WeatherSky.Precip precip = new WeatherSky.Precip();
     private long skyFrameAt;
+    // The sky blurred hard, for the glass on Android 8 to 12 (Scene.setLegacyFrost), by day and at night.
+    private Bitmap skyFrostDay, skyFrostNight;
 
     // Shelf
     private List<HomeApps.Item> shelf = new ArrayList<>();
@@ -2862,6 +2864,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         android.graphics.ColorFilter v = veil(tone(0.32f, 0.42f) * Ui.clamp(drawer.value), blend(0xFFFFFFFF, 0xFF000000, night));
         if (bgTo == null || (fading && bgFrom == null)) {
             updateSky();
+            // The glass shows this sky, frosted (day or night); redrawn when that switches.
+            if (scene.setLegacyFrost(night < 0.5f ? skyFrostDay : skyFrostNight)) post(this::invalidateAll);
             if (lightGradient == null) lightGradient = Ui.gradient(h, 0xFFF5F5F7, 0xFFE2E2E7);
             if (nightGradient == null) nightGradient = Ui.gradient(h, 0xFF1C1C1E, 0xFF0B0B0D);
             fill.setColorFilter(v);
@@ -2897,11 +2901,15 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         final int sw = w, sh = h;
         new Thread(() -> {
             Shader day = WeatherSky.make(sw, sh, kind, false), dark = WeatherSky.make(sw, sh, kind, true);
+            Bitmap frostDay = WeatherSky.frost(kind, false), frostNight = WeatherSky.frost(kind, true);
             handler.post(() -> {
                 skyBuilding = WeatherSky.NONE;
                 if (sw != w || sh != h) return;
                 lightGradient = day;
                 nightGradient = dark;
+                skyFrostDay = frostDay;
+                skyFrostNight = frostNight;
+                invalidateAll();    // the glass shows the new sky
                 skyKind = kind;
                 precip.set(kind, sw, sh);
                 sky.invalidate();

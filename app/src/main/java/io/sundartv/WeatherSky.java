@@ -100,6 +100,17 @@ final class WeatherSky {
         return Backdrop.gpu(out);
     }
 
+    /** The sky blurred hard, small (SW × SH): what the glass shows on Android 8 to 12 (Scene.setLegacyFrost). */
+    static Bitmap frost(int kind, boolean night) {
+        Random rnd = new Random(kind * 31 + (night ? 7 : 3));
+        Bitmap small = paint(kind, night, rnd);
+        int[] px = new int[SW * SH];
+        small.getPixels(px, 0, SW, 0, 0, SW, SH);
+        blur(px, 6, 3);
+        small.setPixels(px, 0, SW, 0, 0, SW, SH);
+        return small;
+    }
+
     /** The sky itself, small (SW × SH): the gradient, the sun or moon glow, clouds, fog, city lights in the rain. */
     private static Bitmap paint(int kind, boolean night, Random rnd) {
         Bitmap small = Bitmap.createBitmap(SW, SH, Bitmap.Config.ARGB_8888);

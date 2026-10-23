@@ -25,6 +25,10 @@ follows the sky outside.
 - **A quote screensaver.** A funny quote over the live sky behind dim frosted glass, a new one every two minutes,
   with the time, date and weather at the top.
 - **Settings over a frosted mountain lake** at dusk.
+- **Frosted glass everywhere:** the shelf, the buttons and the drawer (press down: inputs, shortcuts, the
+  forecast and prices) show the sky blurred behind them, even on Android 8.
+
+  ![The drawer in frosted glass](docs/screenshots/drawer.png)
 - **The clock and the weather** at a glance, with text colors that match the sky.
 - **Wi-Fi and Bluetooth pills** at the top right: your network's name and whether Bluetooth is on. One press opens the
   TV's network page (join or switch networks) or its pairing page (speakers, headphones, remotes).

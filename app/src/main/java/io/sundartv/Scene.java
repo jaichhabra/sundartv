@@ -26,6 +26,20 @@ final class Scene {
     private final Paint liquidPaint = new Paint();
     private final Paint flatFill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint flatRim = new Paint(Paint.ANTI_ALIAS_FLAG);
+    // Android 8 to 12 (no AGSL): the glass shows a frosted copy of the sky behind it (a small, heavily blurred image
+    // stretched to the screen, so each card shows its own part), lightly tinted, instead of a flat fill.
+    private Bitmap legacyFrostImage;
+    private BitmapShader legacyFrost;
+    private final android.graphics.Matrix legacyMatrix = new android.graphics.Matrix();
+    private final Paint frostPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+
+    /** The frosted sky for the glass on Android 8 to 12 (null: flat glass). True when it changed. */
+    boolean setLegacyFrost(Bitmap b) {
+        if (b == legacyFrostImage) return false;
+        legacyFrostImage = b;
+        legacyFrost = b == null ? null : new BitmapShader(b, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+        return true;
+    }
     private final Paint fallback = new Paint();
     private final Recording auroraNode = Recording.create("aurora");
     // The layer is drawn at a quarter size and scaled up: filtered, its soft shapes stay soft instead of stepping.
@@ -252,7 +266,16 @@ final class Scene {
     void glass(Canvas c, RectF r, float radius, int tint, float tintAlpha, int glow, float glowAlpha, float lift, float body, float alpha) {
         if (alpha <= 0.004f) return;
         if (glass == null) {
-            if (body > 0) {
+            if (body > 0 && legacyFrost != null) {
+                legacyMatrix.setScale((float) w / legacyFrostImage.getWidth(), (float) h / legacyFrostImage.getHeight());
+                legacyFrost.setLocalMatrix(legacyMatrix);
+                frostPaint.setShader(legacyFrost);
+                frostPaint.setAlpha(Math.round(255 * Math.min(1, alpha)));
+                c.drawRoundRect(r, radius, radius, frostPaint);
+                // A lighter tint than the flat glass: the frosted sky shows through.
+                flatFill.setColor(Ui.alpha(tint | 0xFF000000, Math.min(0.5f, tintAlpha) * 0.6f * Math.min(1, alpha)));
+                c.drawRoundRect(r, radius, radius, flatFill);
+            } else if (body > 0) {
                 flatFill.setColor(Ui.alpha(tint | 0xFF000000, Math.max(0.35f, tintAlpha)));
                 c.drawRoundRect(r, radius, radius, flatFill);
             }
