@@ -228,15 +228,15 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
         chrome.setPosition(0, 0, w, h);
         // Without photos: the quote over the frosted live sky. Warm off-white, light weights: bright bold white blooms
         // on an LCD in a dark room.
-        sayingPaint = new TextPaint(Ui.text(Ui.light, 76 * k, Ui.alpha(PAPER, 0.92f)));
-        authorPaint = Ui.text(Ui.regular, 30 * k, Ui.alpha(PAPER, 0.6f));
+        sayingPaint = new TextPaint(Ui.text(Ui.regular, 84 * k, PAPER));
+        authorPaint = Ui.text(Ui.medium, 32 * k, Ui.alpha(PAPER, 0.85f));
         authorPaint.setLetterSpacing(0.02f);
-        clockPaint = Ui.numbers(Ui.medium, 34 * k, Ui.alpha(PAPER, 0.8f));
-        datePaint = Ui.text(Ui.regular, 30 * k, Ui.alpha(PAPER, 0.55f));
-        weatherPaint = Ui.numbers(Ui.medium, 30 * k, Ui.alpha(PAPER, 0.75f));
-        weatherDim = Ui.numbers(Ui.regular, 28 * k, Ui.alpha(PAPER, 0.5f));
+        clockPaint = Ui.numbers(Ui.semibold, 38 * k, PAPER);
+        datePaint = Ui.text(Ui.medium, 32 * k, Ui.alpha(PAPER, 0.85f));
+        weatherPaint = Ui.numbers(Ui.semibold, 32 * k, PAPER);
+        weatherDim = Ui.numbers(Ui.medium, 30 * k, Ui.alpha(PAPER, 0.8f));
         for (Paint p : new Paint[] {sayingPaint, authorPaint, clockPaint, datePaint, weatherPaint, weatherDim}) {
-            p.setShadowLayer(20 * k, 0, 2 * k, 0x59000000);
+            p.setShadowLayer(22 * k, 0, 2 * k, 0x80000000);
         }
         skyFor = -1;
         skyBg = null;
@@ -796,7 +796,7 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
         String[] saying = Sayings.at(System.currentTimeMillis());
         String text = "“" + saying[0] + "”";
         int len = text.length();
-        sayingPaint.setTextSize((len <= 50 ? 80 : len <= 80 ? 68 : 58) * k);
+        sayingPaint.setTextSize((len <= 50 ? 88 : len <= 80 ? 76 : 64) * k);
         StaticLayout quote = StaticLayout.Builder.obtain(text, 0, len, sayingPaint, Math.round(1380 * k))
                 .setAlignment(Layout.Alignment.ALIGN_NORMAL).setLineSpacing(0, 1.12f).setIncludePad(false).build();
         float authorGap = 70 * k, block = quote.getHeight() + authorGap;

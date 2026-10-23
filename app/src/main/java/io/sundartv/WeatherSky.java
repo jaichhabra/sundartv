@@ -90,7 +90,7 @@ final class WeatherSky {
         int[] px = new int[SW * SH];
         small.getPixels(px, 0, SW, 0, 0, SW, SH);
         blur(px, 6, 3);
-        mix(px, 0xFF05070D, night ? 0.3f : 0.55f);
+        mix(px, 0xFF05070D, night ? 0.1f : 0.28f);
         small.setPixels(px, 0, SW, 0, 0, SW, SH);
         Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
         new Canvas(out).drawBitmap(small, null, new Rect(0, 0, w, h),
