@@ -1,5 +1,5 @@
 /*
- * On-screen text in the viewer's language, from the Android app's catalogues (app/assets/i18n/<lang>.json, packed into
+ * On-screen text in the viewer's language, from the Android app's catalogues (app/src/main/assets/i18n/<lang>.json, packed into
  * i18n.js by tools/webapp.py), keyed by the English text in the code: tr('Live TV'). A key "context|Text" is "Text" where
  * a language needs another word. Text built at runtime is a pattern with named placeholders: trf('{n} min ago', {n: 12});
  * a count is plural('plural|one:{n} season|other:{n} seasons', 3); a date or time is formatDate('format|h:mm a', at).

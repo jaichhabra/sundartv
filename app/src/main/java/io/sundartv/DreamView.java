@@ -37,8 +37,8 @@ import java.util.concurrent.Executors;
  *    through the digits, bent at the edges; Shaders.GLASS_TEXT) and the compact prices;
  *  - bottom left, the photo's caption: the time-of-day label ("TONIGHT"), the title, and genre · runtime · service.
  * Dark scrims only where there is text, stronger where the photo is bright. Any key exits (as on Apple TV).
- * Without photos (no TMDB key, or before the first fetch): a big quote on black (a new one every two minutes), with
- * the time, the date and the weather below it.
+ * Without photos (no TMDB key, or before the first fetch): the live weather's sky behind dim frosted glass, a quote on
+ * the left (a new one every two minutes), the time and date at the top left, the weather at the top right.
  */
 final class DreamView extends View implements Choreographer.FrameCallback, HomeData.Listener, Recs.Listener {
     private static final long SHOW_MS = 30_000, FADE_MS = 3_000, FIRST_MS = 1_600;
@@ -126,6 +126,11 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
     private Paint datePaint, clockPaint, weatherPaint, weatherDim, authorPaint;
     private TextPaint sayingPaint;
     private long sayingSlot = -1, sayingAt;
+    /** The quote screen's text color (a warm off-white) and side margins. */
+    private static final int PAPER = 0xFFF4F1EA;
+    private static final float SAVER_MARGIN = 132;
+    private Bitmap skyBg;                       // the frosted live sky (WeatherSky.frosted)
+    private int skyFor = -1, skyBuilding = -1;  // which sky it is (condition × 2 + night), and the one being built
     private Paint cornerDate, cornerQuote, cornerStale, cornerClock, labelPaint, metaPaint;
     private TextPaint titlePaint;
 
@@ -221,17 +226,20 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
         k = w / 1920f;
         content.setPosition(0, 0, w, h);
         chrome.setPosition(0, 0, w, h);
-        // Without photos (the quote on black, the time, date and weather below it).
-        sayingPaint = new TextPaint(Ui.text(Ui.displayMedium, 100 * k, 0xF2FFFFFF));
-        authorPaint = Ui.text(Ui.medium, 38 * k, 0x8CFFFFFF);
-        authorPaint.setTextAlign(Paint.Align.CENTER);
+        // Without photos: the quote over the frosted live sky. Warm off-white, light weights: bright bold white blooms
+        // on an LCD in a dark room.
+        sayingPaint = new TextPaint(Ui.text(Ui.light, 76 * k, Ui.alpha(PAPER, 0.92f)));
+        authorPaint = Ui.text(Ui.regular, 30 * k, Ui.alpha(PAPER, 0.6f));
         authorPaint.setLetterSpacing(0.02f);
-        datePaint = Ui.text(Ui.medium, 24 * k, 0x8CFFFFFF);
-        datePaint.setTextAlign(Paint.Align.CENTER);
-        clockPaint = Ui.numbers(Ui.medium, 44 * k, 0xB3FFFFFF);
-        clockPaint.setTextAlign(Paint.Align.CENTER);
-        weatherPaint = Ui.numbers(Ui.medium, 24 * k, 0x8CFFFFFF);
-        weatherDim = Ui.numbers(Ui.regular, 23 * k, 0x66FFFFFF);
+        clockPaint = Ui.numbers(Ui.medium, 34 * k, Ui.alpha(PAPER, 0.8f));
+        datePaint = Ui.text(Ui.regular, 30 * k, Ui.alpha(PAPER, 0.55f));
+        weatherPaint = Ui.numbers(Ui.medium, 30 * k, Ui.alpha(PAPER, 0.75f));
+        weatherDim = Ui.numbers(Ui.regular, 28 * k, Ui.alpha(PAPER, 0.5f));
+        for (Paint p : new Paint[] {sayingPaint, authorPaint, clockPaint, datePaint, weatherPaint, weatherDim}) {
+            p.setShadowLayer(20 * k, 0, 2 * k, 0x59000000);
+        }
+        skyFor = -1;
+        skyBg = null;
         // With photos: the corner (date, clock, prices) and the caption.
         cornerDate = Ui.numbers(Ui.semibold, 30 * k, 0xEBFFFFFF);
         cornerQuote = Ui.numbers(Ui.regular, 23 * k, 0xC7FFFFFF);
@@ -716,10 +724,30 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
         }
     }
 
-    // MARK: - Without photos: a quote on black
+    // MARK: - Without photos: a quote over the live sky, behind frosted glass
 
     private void drawFallback(Canvas canvas, long up, float alpha) {
-        canvas.drawRect(0, 0, w, h, black);
+        HomeData.Weather wx = data.weather;
+        int kind = WeatherSky.kind(wx);
+        int key = kind == WeatherSky.NONE ? -1 : kind * 2 + (wx.isDay ? 0 : 1);
+        if (key >= 0 && key != skyFor && key != skyBuilding) {
+            // The sky for the weather now (and day or night), built in the background; black until it's ready.
+            skyBuilding = key;
+            final int sw = w, sh = h, kd = kind;
+            final boolean nightSky = !wx.isDay;
+            worker.execute(() -> {
+                Bitmap b = WeatherSky.frosted(sw, sh, kd, nightSky);
+                handler.post(() -> {
+                    skyBuilding = -1;
+                    if (sw != w || sh != h) return;
+                    skyBg = b;
+                    skyFor = key;
+                    invalidate();
+                });
+            });
+        }
+        if (skyBg != null) canvas.drawBitmap(skyBg, 0, 0, null);
+        else canvas.drawRect(0, 0, w, h, black);
         long slot = Sayings.slot(System.currentTimeMillis());
         if (slot != sayingSlot) {
             sayingSlot = slot;
@@ -741,29 +769,12 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
     }
 
     private void drawContent(Canvas c) {
-        float cx = w / 2f;
-        String[] saying = Sayings.at(System.currentTimeMillis());
-        String text = "“" + saying[0] + "”";
-        // As big as the quote allows: short ones very big, long ones still large.
-        int len = text.length();
-        sayingPaint.setTextSize((len <= 50 ? 112 : len <= 80 ? 96 : 80) * k);
-        StaticLayout quote = StaticLayout.Builder.obtain(text, 0, len, sayingPaint, Math.round(1640 * k))
-                .setAlignment(Layout.Alignment.ALIGN_CENTER).setLineSpacing(0, 1.08f).setIncludePad(false).build();
-        float authorGap = 80 * k, block = quote.getHeight() + authorGap;
-        float top = h * 0.43f - block / 2;
-        c.save();
-        c.translate(cx - quote.getWidth() / 2f, top);
-        quote.draw(c);
-        c.restore();
-        c.drawText("—  " + saying[1], cx, top + block, authorPaint);
-
-        // Below, small: the time, the day and date, the weather.
-        float clockBase = h - 160 * k;
-        c.drawText(clock, cx, clockBase, clockPaint);
-        c.drawText(date, cx, clockBase + 42 * k, datePaint);
+        float left = SAVER_MARGIN * k, right = w - SAVER_MARGIN * k, top = 128 * k;
+        // Top left: the time, then the day and date. Top right: the weather.
+        c.drawText(clock, left, top, clockPaint);
+        c.drawText("   " + date, left + clockPaint.measureText(clock), top, datePaint);
         HomeData.Weather wx = data.weather;
         if (!Double.isNaN(wx.temp) && Prefs.weather()) {
-            float base = clockBase + 82 * k;
             String symbol = Symbols.weather(wx.code, wx.isDay);
             String now = HomeData.degrees(wx.temp) + "  " + HomeData.condition(wx.code, wx.isDay);
             if (wx != rangeWeather || Ui.generation != rangeGeneration || Prefs.version != rangePrefs) {
@@ -772,14 +783,28 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
                 rangeGeneration = Ui.generation;
                 rangePrefs = Prefs.version;
             }
-            float sw = Symbols.width(getContext(), symbol, 24 * k);
-            float width = sw + 10 * k + weatherPaint.measureText(now) + 18 * k + weatherDim.measureText(range);
-            float x = cx - width / 2;
-            Symbols.draw(getContext(), c, symbol, x + sw / 2, base - Ui.halfCap(weatherPaint), 24 * k, 0x8CFFFFFF);
-            x += sw + 10 * k;
-            c.drawText(now, x, base, weatherPaint);
-            x += weatherPaint.measureText(now) + 18 * k;
-            c.drawText(range, x, base, weatherDim);
+            float size = 30 * k, sw = Symbols.width(getContext(), symbol, size);
+            float x = right - weatherDim.measureText(range);
+            c.drawText(range, x, top, weatherDim);
+            x -= 20 * k + weatherPaint.measureText(now);
+            c.drawText(now, x, top, weatherPaint);
+            x -= 12 * k + sw;
+            Symbols.draw(getContext(), c, symbol, x + sw / 2, top - Ui.halfCap(weatherPaint), size, weatherPaint.getColor());
         }
+
+        // The quote, left-aligned in the middle: a little smaller when it's long.
+        String[] saying = Sayings.at(System.currentTimeMillis());
+        String text = "“" + saying[0] + "”";
+        int len = text.length();
+        sayingPaint.setTextSize((len <= 50 ? 80 : len <= 80 ? 68 : 58) * k);
+        StaticLayout quote = StaticLayout.Builder.obtain(text, 0, len, sayingPaint, Math.round(1380 * k))
+                .setAlignment(Layout.Alignment.ALIGN_NORMAL).setLineSpacing(0, 1.12f).setIncludePad(false).build();
+        float authorGap = 70 * k, block = quote.getHeight() + authorGap;
+        float y = h * 0.54f - block / 2;
+        c.save();
+        c.translate(left, y);
+        quote.draw(c);
+        c.restore();
+        c.drawText("—  " + saying[1], left, y + block, authorPaint);
     }
 }

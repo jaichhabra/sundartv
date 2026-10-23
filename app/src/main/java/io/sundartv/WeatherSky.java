@@ -74,8 +74,34 @@ final class WeatherSky {
     /** Builds the sky (slow: call it off the UI thread). */
     static Shader make(int width, int height, int kind, boolean night) {
         int w = Math.max(2, width), h = Math.max(2, height);
-        float k = h / 1080f;
         Random rnd = new Random(kind * 31 + (night ? 7 : 3));
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG | Paint.FILTER_BITMAP_FLAG);
+        return finish(paint(kind, night, rnd), p, rnd, w, h, h / 1080f, kind, night);
+    }
+
+    /**
+     * The screensaver's background: the same sky behind heavy frosted glass, dimmed for a dark room (a little less at
+     * night, when the sky is dark already). Slow: call it off the UI thread.
+     */
+    static Bitmap frosted(int width, int height, int kind, boolean night) {
+        int w = Math.max(2, width), h = Math.max(2, height);
+        Random rnd = new Random(kind * 31 + (night ? 7 : 3));
+        Bitmap small = paint(kind, night, rnd);
+        int[] px = new int[SW * SH];
+        small.getPixels(px, 0, SW, 0, 0, SW, SH);
+        blur(px, 6, 3);
+        mix(px, 0xFF05070D, night ? 0.3f : 0.55f);
+        small.setPixels(px, 0, SW, 0, 0, SW, SH);
+        Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        new Canvas(out).drawBitmap(small, null, new Rect(0, 0, w, h),
+                new Paint(Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG));
+        small.recycle();
+        grain(out, 5f, rnd);
+        return Backdrop.gpu(out);
+    }
+
+    /** The sky itself, small (SW × SH): the gradient, the sun or moon glow, clouds, fog, city lights in the rain. */
+    private static Bitmap paint(int kind, boolean night, Random rnd) {
         Bitmap small = Bitmap.createBitmap(SW, SH, Bitmap.Config.ARGB_8888);
         Canvas sc = new Canvas(small);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG | Paint.FILTER_BITMAP_FLAG);
@@ -117,7 +143,11 @@ final class WeatherSky {
             }
         }
         p.setShader(null);
+        return small;
+    }
 
+    /** Softens the small sky, frosts it when wet, scales it up with grain, and adds stars or the drops on the glass. */
+    private static Shader finish(Bitmap small, Paint p, Random rnd, int w, int h, float k, int kind, boolean night) {
         int[] px = new int[SW * SH];
         small.getPixels(px, 0, SW, 0, 0, SW, SH);
         blur(px, 2, 2);

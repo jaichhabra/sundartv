@@ -5,6 +5,16 @@
 *Sundar* means beautiful. SundarTV replaces your TV's cluttered, ad-filled home screen with a calm one that
 follows the sky outside.
 
+![Home screen on a clear day](docs/screenshots/home-clear.png)
+
+| Rain | Snow |
+| --- | --- |
+| ![Home screen in the rain](docs/screenshots/home-rain.png) | ![Home screen in the snow](docs/screenshots/home-snow.png) |
+
+| Screensaver | Settings |
+| --- | --- |
+| ![Quote screensaver](docs/screenshots/screensaver.png) | ![Settings over a frosted mountain lake](docs/screenshots/settings.png) |
+
 ## What you get
 
 - **The sky outside, live.** The background follows your city's real weather: clear blue with the sun's glow,
@@ -12,8 +22,9 @@ follows the sky outside.
   snow move; day turns to night at your real sunset.
 - **No ads.** No sponsored rows, banners or autoplaying promos.
 - **Your apps up front.** The streaming apps you use, on a glass shelf you arrange on the TV.
-- **A quote screensaver.** A big, funny quote on black, a new one every two minutes, with the time, date and
-  weather underneath.
+- **A quote screensaver.** A funny quote over the live sky behind dim frosted glass, a new one every two minutes,
+  with the time, date and weather at the top.
+- **Settings over a frosted mountain lake** at dusk.
 - **The clock and the weather** at a glance, with text colors that match the sky.
 - **Safe.** No root, nothing uninstalled. One button brings back the TV's original home screen.
 
@@ -49,6 +60,22 @@ Original first, then uninstall SundarTV (Settings → Apps).
 
 The same home screen also builds as an app for LG (webOS 3+) and Samsung (Tizen 3+) TVs: `python3 webos/build.py`
 and `python3 tizen/build.py`. See `CLAUDE.md` for the steps.
+
+## Project structure
+
+```
+app/src/main/
+  AndroidManifest.xml
+  java/io/sundartv/   the Android app (HomeView: home screen, WeatherSky: the live sky,
+                      DreamView + Sayings: screensaver, SettingsActivity + Scenery: settings)
+  res/                Android resources
+  assets/             fonts, icons, translations (i18n/<lang>.json)
+web/                  the same home screen as a web app, for LG and Samsung
+webos/  tizen/        LG and Samsung packaging and install
+tools/                translations, checks, artwork
+docs/screenshots/     screenshots
+build.sh              builds SundarTV.apk (no Gradle)
+```
 
 ## How it works
 
