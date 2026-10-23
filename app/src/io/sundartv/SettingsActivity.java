@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.graphics.Bitmap;
 import android.graphics.BlurMaskFilter;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -149,6 +150,7 @@ public class SettingsActivity extends Activity {
         private long startedAt, lastNanos, pendingAt, lastSky;
         private int w, h;
         private float k = 1;
+        private Bitmap scenery;     // the mountain lake behind frosted glass (Scenery); the sky until it's ready
         private Paint title, subtitle, version, rowLabel, rowValue, rowSub, header, cellLabel, cellValue, warn, spinner, white, shadow;
         private TextPaint notice;
 
@@ -289,7 +291,7 @@ public class SettingsActivity extends Activity {
             if (!running) return;
             boolean moving = busy();
             for (Spring s : pop) moving |= !s.settled();
-            if (moving || SystemClock.uptimeMillis() - lastSky >= 100) invalidate();
+            if (moving || (scenery == null && SystemClock.uptimeMillis() - lastSky >= 100)) invalidate();
             Choreographer.getInstance().postFrameCallback(this);
         }
 
@@ -298,6 +300,15 @@ public class SettingsActivity extends Activity {
             h = height;
             k = w / 1920f;
             scene.setSize(w, h);
+            scenery = null;
+            final int sw = w, sh = h;
+            new Thread(() -> {
+                Bitmap b = Scenery.make(sw, sh);
+                handler.post(() -> {
+                    if (sw == w && sh == h) scenery = b;
+                    invalidate();
+                });
+            }, "Scenery").start();
             title = Ui.text(Ui.displaySemibold, 50 * k, 0xFFFFFFFF);
             title.setTextAlign(Paint.Align.CENTER);
             subtitle = Ui.text(Ui.regular, 26 * k, 0x99FFFFFF);
@@ -361,11 +372,15 @@ public class SettingsActivity extends Activity {
             }
             long up = SystemClock.uptimeMillis();
             float seconds = (up - startedAt) / 1000f;
-            if (up - lastSky >= 100) {
-                lastSky = up;
-                scene.advance(seconds);
+            if (scenery != null) {
+                c.drawBitmap(scenery, 0, 0, null);
+            } else {
+                if (up - lastSky >= 100) {
+                    lastSky = up;
+                    scene.advance(seconds);
+                }
+                scene.drawBackground(c);
             }
-            scene.drawBackground(c);
 
             // On the left: big symbol, title, description.
             float cx = 500 * k;
