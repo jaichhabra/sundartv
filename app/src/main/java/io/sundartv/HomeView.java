@@ -2861,7 +2861,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         float e = bgFadeAt == 0 ? 1 : fadeEase(bgFadeAt, up);
         boolean fading = bgFadeAt != 0;
         // Drawer open: the background lightens (by day) or darkens (at night), as a filter on the drawing itself.
-        android.graphics.ColorFilter v = veil(tone(0.32f, 0.42f) * Ui.clamp(drawer.value), blend(0xFFFFFFFF, 0xFF000000, night));
+        // Lightly: the frosted cards need the sky's color behind them to stand out (a strong wash made them fade in).
+        android.graphics.ColorFilter v = veil(tone(0.12f, 0.3f) * Ui.clamp(drawer.value), blend(0xFFFFFFFF, 0xFF000000, night));
         if (bgTo == null || (fading && bgFrom == null)) {
             updateSky();
             // The glass shows this sky, frosted (day or night); redrawn when that switches.

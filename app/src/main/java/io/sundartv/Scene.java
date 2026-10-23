@@ -72,8 +72,9 @@ final class Scene {
         }
         auroraNode.setUseCompositingLayer(true, layerPaint);
         flatRim.setStyle(Paint.Style.STROKE);
-        flatRim.setColor(0x33FFFFFF);
-        flatRim.setStrokeWidth(1.5f);
+        // Without AGSL the rim is what shapes the glass: bright enough to read like the edge of a pane.
+        flatRim.setColor(0x66FFFFFF);
+        flatRim.setStrokeWidth(2.2f);
     }
 
     void setSize(int width, int height) {
