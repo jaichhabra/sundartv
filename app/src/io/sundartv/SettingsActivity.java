@@ -315,6 +315,10 @@ public class SettingsActivity extends Activity {
             subtitle.setTextAlign(Paint.Align.CENTER);
             version = Ui.text(Ui.regular, 22 * k, 0x66FFFFFF);
             version.setTextAlign(Paint.Align.CENTER);
+            // Over the scenery's sunset: a soft shadow keeps the left side's text readable.
+            subtitle.setColor(0xD9FFFFFF);
+            version.setColor(0x99FFFFFF);
+            for (Paint p : new Paint[] {title, subtitle, version}) p.setShadowLayer(16 * k, 0, 2 * k, 0x80000000);
             rowLabel = Ui.text(Ui.medium, 30 * k, 0xF2FFFFFF);
             rowValue = Ui.text(Ui.regular, 28 * k, 0x8CFFFFFF);
             rowValue.setTextAlign(Paint.Align.RIGHT);
