@@ -170,7 +170,7 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
         startedAt = clock();
         lastFrame = 0;
         failed.clear();
-        fallback = recs.showcase().isEmpty();
+        fallback = Prefs.quoteScreensaver() || recs.showcase().isEmpty();
         data.addListener(this);
         recs.addListener(this);
         data.refreshIfStale();
@@ -264,7 +264,8 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
 
     /** Loads the next photo in the background (one at a time); once ready, it comes in at the right moment. */
     private void prepareNext() {
-        if (!running || decoding || prepared != null) return;
+        // Home Settings › Screensaver › Quotes: no photos to load.
+        if (!running || decoding || prepared != null || Prefs.quoteScreensaver()) return;
         List<Recs.Pick> list = recs.showcase();
         if (list.isEmpty()) return;
         Slide last = incoming != null ? incoming : current;

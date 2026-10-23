@@ -37,7 +37,8 @@ You need an Android TV or Google TV (Android 8 or newer) and a computer on the s
 2. **On the computer:** a JDK 17+, the Android SDK command-line tools (build-tools 34+, platform android-34) and
    `adb`. On Windows, run the build from Git Bash.
 3. **Build:** `./build.sh`. The first run creates `config.properties`: set your city (`latitude`, `longitude`,
-   `city`), your country (`tmdb_region`) and, if you like, a free TMDB key for trending picks. Run it again.
+   `city`), your country (`tmdb_region`) and, if you like, a free TMDB key for trending picks (see
+   [Trending picks](#trending-picks-tmdb)). Run it again.
 4. **Install:**
    ```
    adb connect <TV-IP>:5555
@@ -49,6 +50,32 @@ You need an Android TV or Google TV (Android 8 or newer) and a computer on the s
 To pick when the screensaver starts: Settings → Device Preferences → Screen saver → When to start.
 
 Keep `sundartv.keystore`: updates must be signed with the same key.
+
+## Trending picks (TMDB)
+
+With a free TMDB key, the home screen adds **For You**: trending movies and shows, only from streaming apps your
+TV already has, with three tabs (Explore, Movies, Shows) and fresh picks every hour. Each card shows the genre,
+runtime (or seasons) and the app it's on.
+
+![Trending picks over the movie's art](docs/screenshots/picks-movie-art.png)
+
+**Get a key** (free, two minutes): create an account at [themoviedb.org](https://www.themoviedb.org), open
+Settings → API and request a developer key. Paste the **API Key** (or the API Read Access Token) after `tmdb_key=`
+in `config.properties`, then build and install again. `config.properties` is in `.gitignore`: your key never goes to
+GitHub.
+
+**Choose the look** in SundarTV → Home Settings:
+
+| Setting | Options |
+| --- | --- |
+| Background | *Movie art* (the first pick's image) or *Weather sky* (the live sky, as without a key) |
+| Screensaver | *Quotes* (the default) or *Movie photos* (a slideshow of the picks) |
+
+| Picks over the weather sky | Home Settings |
+| --- | --- |
+| ![Picks over the live weather sky](docs/screenshots/picks-weather-sky.png) | ![Home Settings with Background and Screensaver](docs/screenshots/home-settings.png) |
+
+Without a key, everything else works: the weather sky, the shelf, the quote screensaver.
 
 ## Going back
 

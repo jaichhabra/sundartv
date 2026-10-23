@@ -111,6 +111,16 @@ final class Prefs {
     static boolean sounds() { return sp().getBoolean("sounds", true); }
     static void setSounds(boolean on) { put("sounds", on); }
 
+    // MARK: - Background and screensaver (with picks on; without a TMDB key it's always the sky and the quotes)
+
+    /** The home screen behind the picks: the live weather sky (true) or the first pick's art (false). */
+    static boolean skyBackground() { return sp().getBoolean("skyBackground", false); }
+    static void setSkyBackground(boolean on) { put("skyBackground", on); }
+
+    /** The screensaver: the quotes over the frosted sky (true, SundarTV's default) or the picks' photos (false). */
+    static boolean quoteScreensaver() { return sp().getBoolean("quoteScreensaver", true); }
+    static void setQuoteScreensaver(boolean on) { put("quoteScreensaver", on); }
+
     // MARK: - Widgets and coins
 
     static boolean weather() { return sp().getBoolean("weather", true); }
