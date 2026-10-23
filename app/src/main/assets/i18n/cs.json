@@ -167,7 +167,6 @@
  "on the shelf, place {n}": "v oblíbených aplikacích, místo {n}",
  "plural|one:{n} day ago|other:{n} days ago": "one:před {n} dnem|few:před {n} dny|many:před {n} dne|other:před {n} dny",
  "plural|one:{n} season|other:{n} seasons": "one:{n} řada|few:{n} řady|many:{n} řady|other:{n} řad",
- "prices from {ago}": "kurzy {ago}",
  "quotes|{ago}": "{ago}",
  "shelf|Off": "Vypnuto",
  "talkback|Sunrise {time}": "Východ {time}",

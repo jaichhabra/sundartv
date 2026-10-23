@@ -167,7 +167,6 @@
  "on the shelf, place {n}": "в избранном, позиция {n}",
  "plural|one:{n} day ago|other:{n} days ago": "one:{n} день назад|few:{n} дня назад|many:{n} дней назад|other:{n} дня назад",
  "plural|one:{n} season|other:{n} seasons": "one:{n} сезон|few:{n} сезона|many:{n} сезонов|other:{n} сезона",
- "prices from {ago}": "котировки за {ago}",
  "quotes|{ago}": "{ago}",
  "shelf|Off": "Выкл.",
  "talkback|Sunrise {time}": "Восход {time}",
