@@ -7,7 +7,7 @@ LG TVs (webOS) and Samsung TVs (Tizen) get the same home screen as a web app: `w
 SundarTV is made by JC. It started from Free My TV (MIT); `NOTICE.md` keeps that credit and the other licenses:
 never remove it.
 Before you push, run `tools/check.sh`: the Google TV build, `translate.py --check`, the LG and Samsung packages and
-ES5 in `web/` (syntax and the newer calls old TVs lack). Every pull request runs it too (`.github/workflows/check.yml`).
+ES5 in `web/` (syntax and the newer calls old TVs lack).
 
 The person you're helping may not be technical. Keep it short and friendly, say what you're about to do on their TV
 before you do it, and let them do the taps on the TV.
