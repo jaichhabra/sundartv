@@ -1,4 +1,8 @@
 {
+ "Wi-Fi": "Wi-Fi",
+ "Ethernet": "Ethernet",
+ "Connected": "Bağlı",
+ "Not connected": "Bağlı değil",
  "Background": "Arka plan",
  "Weather sky": "Hava durumu gökyüzü",
  "Movie art": "Film görselleri",

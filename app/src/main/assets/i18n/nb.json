@@ -1,4 +1,8 @@
 {
+ "Wi-Fi": "Wi-Fi",
+ "Ethernet": "Ethernet",
+ "Connected": "Tilkoblet",
+ "Not connected": "Ikke tilkoblet",
  "Background": "Bakgrunn",
  "Weather sky": "Værhimmel",
  "Movie art": "Filmbilder",

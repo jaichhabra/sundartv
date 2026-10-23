@@ -1,4 +1,8 @@
 {
+ "Wi-Fi": "Wi-Fi",
+ "Ethernet": "Ethernet",
+ "Connected": "Connected",
+ "Not connected": "Not connected",
  "Background": "Background",
  "Weather sky": "Weather sky",
  "Movie art": "Movie art",

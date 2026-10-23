@@ -1,4 +1,8 @@
 {
+ "Wi-Fi": "WLAN",
+ "Ethernet": "Ethernet",
+ "Connected": "Verbunden",
+ "Not connected": "Nicht verbunden",
  "Background": "Hintergrund",
  "Weather sky": "Wetterhimmel",
  "Movie art": "Filmbilder",

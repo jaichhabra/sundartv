@@ -1,4 +1,8 @@
 {
+ "Wi-Fi": "Wi-Fi",
+ "Ethernet": "Ethernet",
+ "Connected": "Підключено",
+ "Not connected": "Немає підключення",
  "Background": "Фон",
  "Weather sky": "Небо за погодою",
  "Movie art": "Обкладинки фільмів",

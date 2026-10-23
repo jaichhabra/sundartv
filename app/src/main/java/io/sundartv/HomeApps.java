@@ -59,6 +59,8 @@ final class HomeApps {
     static final int INPUTS = 7;
     /** The For You button: opens the recommendations page (the home screen handles it; only with a TMDB key). */
     static final int PICKS = 8;
+    /** The Wi-Fi and Bluetooth pills: the TV's network page and its "add accessory" (pairing) page. */
+    static final int WIFI = 9, BLUETOOTH = 10;
     /** Image size of each card (16:9; on screen it shows up to ~330 px wide). */
     static final int TILE_W = 384, TILE_H = 216;
 
@@ -189,9 +191,10 @@ final class HomeApps {
 
     // MARK: - Top buttons (the round ones at the top right)
 
-    static final String TOP_PICKS = "picks", TOP_LIVE = "live", TOP_INPUTS = "inputs", TOP_SETTINGS = "settings";
-    static final List<String> TOP_DEFAULT =
-            Collections.unmodifiableList(java.util.Arrays.asList(TOP_PICKS, TOP_LIVE, TOP_INPUTS, TOP_SETTINGS));
+    static final String TOP_WIFI = "wifi", TOP_BLUETOOTH = "bluetooth", TOP_PICKS = "picks", TOP_LIVE = "live",
+            TOP_INPUTS = "inputs", TOP_SETTINGS = "settings";
+    static final List<String> TOP_DEFAULT = Collections.unmodifiableList(
+            java.util.Arrays.asList(TOP_WIFI, TOP_BLUETOOTH, TOP_PICKS, TOP_LIVE, TOP_INPUTS, TOP_SETTINGS));
     static final int MAX_TOP = TOP_DEFAULT.size();
 
     /** The keys of the top buttons, in order (Settings > Top Buttons; by default Live TV, HDMI Inputs, Settings). */
@@ -208,6 +211,7 @@ final class HomeApps {
         List<Item> items = new ArrayList<>();
         for (String key : topButtonKeys()) {
             if (key.equals(TOP_PICKS) && Config.TMDB_KEY.trim().isEmpty()) continue;
+            if (key.equals(TOP_BLUETOOTH) && Connectivity.bluetooth() == null) continue;
             items.add(topButton(key));
         }
         return items;
@@ -215,6 +219,8 @@ final class HomeApps {
 
     private static Item topButton(String key) {
         switch (key) {
+            case TOP_WIFI: return action(WIFI, TOP_WIFI, Ui.tr("Wi-Fi"), "wifi");
+            case TOP_BLUETOOTH: return action(BLUETOOTH, TOP_BLUETOOTH, "Bluetooth", "bluetooth");
             case TOP_PICKS: return action(PICKS, TOP_PICKS, Ui.tr("For You"), "sparkles");
             case TOP_LIVE: return action(LIVE_TV, TOP_LIVE, Ui.tr("light|Live TV"), "live_tv");
             case TOP_INPUTS: return action(INPUTS, TOP_INPUTS, Ui.tr("HDMI Inputs"), "hdmi");
@@ -434,8 +440,19 @@ final class HomeApps {
             case ANDROID_SETTINGS:
                 intent = new Intent(Settings.ACTION_SETTINGS);
                 break;
+            case WIFI:
+                intent = new Intent(Settings.ACTION_WIFI_SETTINGS);
+                break;
+            case BLUETOOTH:
+                // Android TV's "add accessory": pairs speakers, headphones, remotes and keyboards.
+                intent = new Intent("com.google.android.intent.action.CONNECT_INPUT");
+                break;
             default:
                 return false;
+        }
+        // A TV without that page: its Settings.
+        if ((it.kind == WIFI || it.kind == BLUETOOTH) && intent.resolveActivity(a.getPackageManager()) == null) {
+            intent = new Intent(Settings.ACTION_SETTINGS);
         }
         if (intent == null) return false;
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

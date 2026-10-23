@@ -1,4 +1,8 @@
 {
+ "Wi-Fi": "Wi-Fi",
+ "Ethernet": "イーサネット",
+ "Connected": "接続済み",
+ "Not connected": "未接続",
  "Background": "背景",
  "Weather sky": "天気の空",
  "Movie art": "映画のアート",

@@ -26,6 +26,8 @@ follows the sky outside.
   with the time, date and weather at the top.
 - **Settings over a frosted mountain lake** at dusk.
 - **The clock and the weather** at a glance, with text colors that match the sky.
+- **Wi-Fi and Bluetooth pills** at the top right: your network's name and whether Bluetooth is on. One press opens the
+  TV's network page (join or switch networks) or its pairing page (speakers, headphones, remotes).
 - **Safe.** No root, nothing uninstalled. One button brings back the TV's original home screen.
 
 ## Install (Android TV / Google TV)

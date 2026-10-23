@@ -1,4 +1,8 @@
 {
+ "Wi-Fi": "Wi-Fi",
+ "Ethernet": "Ethernet",
+ "Connected": "Συνδέθηκε",
+ "Not connected": "Χωρίς σύνδεση",
  "Background": "Φόντο",
  "Weather sky": "Ουρανός καιρού",
  "Movie art": "Εικόνες ταινιών",

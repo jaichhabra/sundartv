@@ -147,6 +147,11 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private List<Recs.Pick> allCards = new ArrayList<>();
     private int cardOffset;
     private boolean picksPage;      // the recommendations page is open (see picksOn)
+    // The Wi-Fi and Bluetooth pills (top buttons that show a status): their text, and how they're drawn.
+    private String wifiText = "", bluetoothText = "";
+    private Paint pillText, pillIcon;
+    private final Path pillPath = new Path();
+    private final RectF pillArc = new RectF();
     // Held on a card for a moment, its synopsis rises over the picture: since when it's held, and how far it's up.
     private static final long EXPAND_MS = 1500;
     private long cardFocusAt;
@@ -370,6 +375,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             updatePalette();
             checkNight(true);
             updatePicks();      // three new ones every hour
+            updatePills();
             handler.postDelayed(this, 15_000);
         }
     };
@@ -446,6 +452,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         checkNotices();
         if (!again) reload();
         updatePalette();
+        updatePills();      // back from the TV's network or pairing page: show what changed
         // Coming back (from an app, or with Home) opens on the clock, not on the recommendations page.
         if (picksPage) {
             picksPage = false;
@@ -629,6 +636,11 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         synopsisPaint.setShadowLayer(10 * k, 0, 1 * k, 0x80000000);
         synopses.clear();
         lQuote = Ui.numbers(Ui.regular, 21 * k, L_FAINT);
+        pillText = Ui.text(Ui.semibold, 25 * k, L_INK);
+        pillIcon = new Paint(Paint.ANTI_ALIAS_FLAG);
+        pillIcon.setStyle(Paint.Style.STROKE);
+        pillIcon.setStrokeCap(Paint.Cap.ROUND);
+        pillIcon.setStrokeJoin(Paint.Join.ROUND);
         lTip = Ui.text(Ui.semibold, 25 * k, L_INK);
         lTip.setTextAlign(Paint.Align.CENTER);
         lDate = Ui.text(Ui.semibold, 34 * k, L_DIM);
@@ -2788,8 +2800,11 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         }
         float b = L_BUTTON * k, right = CONTENT_R * k, cy = L_BUTTON_CY * k;
         for (int i = lightButtons.size() - 1; i >= 0; i--) {
-            topRects[TABS + i].set(right - b, cy - b / 2, right, cy + b / 2);
-            right -= b + L_BUTTON_GAP * k;
+            HomeApps.Item it = lightButtons.get(i);
+            // A pill: the icon's circle plus its status text.
+            float width = isPill(it) ? b + pillText.measureText(pillLabel(it)) + 24 * k : b;
+            topRects[TABS + i].set(right - width, cy - b / 2, right, cy + b / 2);
+            right -= width + L_BUTTON_GAP * k;
         }
         float top = L_CARDS_TOP * k, ch = L_CARD_H * k, g = L_CARD_GAP * k, left = MARGIN * k, tall = L_TALL_W * k;
         float wide = (CONTENT_R - MARGIN) * k - 2 * tall - 2 * g;
@@ -3106,8 +3121,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         for (int i = 0; i < lightButtons.size(); i++) {
             HomeApps.Item it = lightButtons.get(i);
             RectF r = topRects[TABS + i];
-            float f = Ui.clamp(topFocus[TABS + i].value), s = 1 + 0.1f * f, rad = r.width() / 2 * s;
-            cell.set(r.centerX() - rad, r.centerY() - rad, r.centerX() + rad, r.centerY() + rad);
+            boolean pill = isPill(it);
+            float f = Ui.clamp(topFocus[TABS + i].value), s = 1 + 0.1f * f;
+            float rad = r.height() / 2 * s, halfW = r.width() / 2 * s;
+            cell.set(r.centerX() - halfW, r.centerY() - rad, r.centerX() + halfW, r.centerY() + rad);
             tmp.set(cell);
             tmp.offset(0, (6 + 8 * f) * k);
             shadow.setColor(Ui.alpha(0xFF000000, tone(0.1f, 0.3f) + tone(0.14f, 0.2f) * f));
@@ -3117,10 +3134,18 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             if (f > 0.01f) {
                 fill.setShader(null);
                 fill.setColor(Ui.alpha(0xFFFFFFFF, f));
-                c.drawCircle(cell.centerX(), cell.centerY(), rad, fill);
+                c.drawRoundRect(cell, rad, rad, fill);
             }
-            Symbols.draw(getContext(), c, it.symbol, cell.centerX(), cell.centerY(), 27 * k * s,
-                    blend(tone(L_INK, 0xEBFFFFFF), L_INK, f));
+            int ink = blend(tone(L_INK, 0xEBFFFFFF), L_INK, f);
+            if (pill) {
+                drawPillIcon(c, it.kind, cell.left + rad, cell.centerY(), 27 * k * s, ink);
+                pillText.setTextSize(25 * k * s);
+                pillText.setColor(ink);
+                c.drawText(pillLabel(it), cell.left + 2 * rad - 6 * k * s, cell.centerY() + Ui.halfCap(pillText), pillText);
+                pillText.setTextSize(25 * k);
+                continue;   // the pill says what it is: no name below it
+            }
+            Symbols.draw(getContext(), c, it.symbol, cell.centerX(), cell.centerY(), 27 * k * s, ink);
             if (f > 0.01f) {
                 String label = it.label;
                 float half = lTip.measureText(label) / 2;
@@ -3128,6 +3153,53 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 lTip.setAlpha(Math.round(255 * f));
                 c.drawText(label, x, r.bottom + (40 + 4 * f) * k, lTip);
             }
+        }
+    }
+
+    private static boolean isPill(HomeApps.Item it) {
+        return it.kind == HomeApps.WIFI || it.kind == HomeApps.BLUETOOTH;
+    }
+
+    private String pillLabel(HomeApps.Item it) {
+        return it.kind == HomeApps.WIFI ? wifiText : bluetoothText;
+    }
+
+    /** The pills' text (every 15 s and on coming back): laid out again only when it changed. */
+    private void updatePills() {
+        String wifi = Connectivity.network(getContext()), bt = Connectivity.bluetooth();
+        if (bt == null) bt = "";
+        if (wifi.equals(wifiText) && bt.equals(bluetoothText)) return;
+        wifiText = wifi;
+        bluetoothText = bt;
+        if (pillText != null) layoutLight();
+        statusDirty = true;
+        status.invalidate();
+    }
+
+    /** Wi-Fi: a dot and three arcs. Bluetooth: its rune. Drawn (no symbol for them), centered on x, y. */
+    private void drawPillIcon(Canvas c, int kind, float x, float y, float size, int color) {
+        pillIcon.setColor(color);
+        pillIcon.setStrokeWidth(size * 0.11f);
+        if (kind == HomeApps.WIFI) {
+            float base = y + size * 0.34f;
+            for (int i = 1; i <= 3; i++) {
+                float r = size * 0.21f * i;
+                pillArc.set(x - r, base - r, x + r, base + r);
+                c.drawArc(pillArc, 225, 90, false, pillIcon);
+            }
+            pillIcon.setStyle(Paint.Style.FILL);
+            c.drawCircle(x, base - size * 0.02f, size * 0.08f, pillIcon);
+            pillIcon.setStyle(Paint.Style.STROKE);
+        } else {
+            float h = size * 0.46f, w = size * 0.22f;
+            pillPath.reset();
+            pillPath.moveTo(x - w, y - h * 0.45f);
+            pillPath.lineTo(x + w, y + h * 0.45f);
+            pillPath.lineTo(x, y + h);
+            pillPath.lineTo(x, y - h);
+            pillPath.lineTo(x + w, y - h * 0.45f);
+            pillPath.lineTo(x - w, y + h * 0.45f);
+            c.drawPath(pillPath, pillIcon);
         }
     }
 

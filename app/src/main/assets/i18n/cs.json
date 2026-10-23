@@ -1,4 +1,8 @@
 {
+ "Wi-Fi": "Wi-Fi",
+ "Ethernet": "Ethernet",
+ "Connected": "Připojeno",
+ "Not connected": "Nepřipojeno",
  "Background": "Pozadí",
  "Weather sky": "Obloha podle počasí",
  "Movie art": "Obrázky filmů",

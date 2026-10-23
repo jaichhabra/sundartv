@@ -1,4 +1,8 @@
 {
+ "Wi-Fi": "Wi-Fi",
+ "Ethernet": "以太网",
+ "Connected": "已连接",
+ "Not connected": "未连接",
  "Background": "背景",
  "Weather sky": "天气天空",
  "Movie art": "影片海报",

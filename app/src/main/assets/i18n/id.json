@@ -1,4 +1,8 @@
 {
+ "Wi-Fi": "Wi-Fi",
+ "Ethernet": "Ethernet",
+ "Connected": "Terhubung",
+ "Not connected": "Tidak terhubung",
  "Background": "Latar belakang",
  "Weather sky": "Langit cuaca",
  "Movie art": "Gambar film",

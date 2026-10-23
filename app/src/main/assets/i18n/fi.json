@@ -1,4 +1,8 @@
 {
+ "Wi-Fi": "Wi-Fi",
+ "Ethernet": "Ethernet",
+ "Connected": "Yhdistetty",
+ "Not connected": "Ei yhteyttä",
  "Background": "Tausta",
  "Weather sky": "Säätaivas",
  "Movie art": "Elokuvien kuvitus",
