@@ -730,14 +730,15 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
     private void drawFallback(Canvas canvas, long up, float alpha) {
         HomeData.Weather wx = data.weather;
         int kind = WeatherSky.kind(wx);
-        int key = kind == WeatherSky.NONE ? -1 : kind * 2 + (wx.isDay ? 0 : 1);
+        // The sky for the weather now, and day, dusk or night; built in the background, black until it's ready.
+        final int look = WeatherSky.dusk(wx, System.currentTimeMillis()) ? WeatherSky.DUSK
+                : wx.isDay ? WeatherSky.DAY : WeatherSky.NIGHT;
+        int key = kind == WeatherSky.NONE ? -1 : kind * 3 + look;
         if (key >= 0 && key != skyFor && key != skyBuilding) {
-            // The sky for the weather now (and day or night), built in the background; black until it's ready.
             skyBuilding = key;
             final int sw = w, sh = h, kd = kind;
-            final boolean nightSky = !wx.isDay;
             worker.execute(() -> {
-                Bitmap b = WeatherSky.frosted(sw, sh, kd, nightSky);
+                Bitmap b = WeatherSky.frosted(sw, sh, kd, look);
                 handler.post(() -> {
                     skyBuilding = -1;
                     if (sw != w || sh != h) return;

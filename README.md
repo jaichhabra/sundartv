@@ -5,7 +5,9 @@
 *Sundar* means beautiful. SundarTV replaces your TV's cluttered, ad-filled home screen with a calm one that
 follows the sky outside.
 
-![Home screen on a clear day](docs/screenshots/home-clear.png)
+| Day | Dusk |
+| --- | --- |
+| ![Home screen on a clear day](docs/screenshots/home-clear.png) | ![Home screen at dusk](docs/screenshots/home-dusk.png) |
 
 | Rain | Snow |
 | --- | --- |

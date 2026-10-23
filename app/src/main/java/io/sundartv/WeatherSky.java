@@ -42,28 +42,77 @@ final class WeatherSky {
         return CLOUDY;
     }
 
-    /** Blue by day: the text on it is white (elsewhere it's dark). */
+    /**
+     * The text on the sky is white: like Apple Weather's, every sky (clear, rain, fog, dusk, night) is deep enough for
+     * it. (Kept as a question: a lighter palette would answer false and get dark text.)
+     */
     static boolean blue(int kind) {
-        return kind == CLEAR || kind == PARTLY;
+        return kind != NONE;
     }
 
     private static boolean wet(int kind) {
         return kind == DRIZZLE || kind == RAIN || kind == HEAVY || kind == STORM;
     }
 
-    /** The sky's top and bottom colors, by day (first pair) and at night. */
-    private static int[] colors(int kind, boolean night) {
-        switch (kind) {
-            case CLEAR:   return night ? new int[] {0xFF050E26, 0xFF1A3060} : new int[] {0xFF3F8FE0, 0xFF9CCBF3};
-            case PARTLY:  return night ? new int[] {0xFF0A152F, 0xFF233660} : new int[] {0xFF4E97DD, 0xFFA8CFEF};
-            case CLOUDY:  return night ? new int[] {0xFF1A2130, 0xFF303A4B} : new int[] {0xFF9DB0C3, 0xFFD6E0E9};
-            case FOG:     return night ? new int[] {0xFF252B34, 0xFF3D444E} : new int[] {0xFFC2CBD3, 0xFFE5E8EC};
-            case DRIZZLE: return night ? new int[] {0xFF101B2B, 0xFF223044} : new int[] {0xFF98AABB, 0xFFCFD9E3};
-            case RAIN:    return night ? new int[] {0xFF0D1828, 0xFF1E2B3D} : new int[] {0xFF8C9FB2, 0xFFC8D3DE};
-            case HEAVY:   return night ? new int[] {0xFF0A1322, 0xFF1A2536} : new int[] {0xFF8293A6, 0xFFBFCAD5};
-            case SNOW:    return night ? new int[] {0xFF1E293B, 0xFF3A4860} : new int[] {0xFFB2C2D2, 0xFFE8EDF3};
-            default:      return night ? new int[] {0xFF0C1120, 0xFF1D2434} : new int[] {0xFF8F9BAA, 0xFFC0C8D2};
+    /** The three looks of a sky: by day, at dusk (and dawn), at night. */
+    static final int DAY = 0, DUSK = 1, NIGHT = 2;
+
+    /** Around sunset (70 minutes before to 50 after) and sunrise (40 before to 50 after): the evening's gradient. */
+    static boolean dusk(HomeData.Weather wx, long now) {
+        if (wx == null || wx.sunset == 0) return false;
+        long m = 60_000L;
+        return (now > wx.sunset - 70 * m && now < wx.sunset + 50 * m)
+                || (wx.sunrise != 0 && now > wx.sunrise - 40 * m && now < wx.sunrise + 50 * m);
+    }
+
+    /**
+     * The sky's colors, top to bottom, after Apple Weather: a deep blue fading lighter at the horizon by day, deep
+     * blue through lavender to peach at dusk, navy-violet at night; slate for rain, gray-blue for clouds and fog.
+     */
+    private static int[] colors(int kind, int look) {
+        if (look == DUSK) {
+            switch (kind) {
+                case CLEAR: case PARTLY: return new int[] {0xFF26356A, 0xFF4C5490, 0xFF8A7EA9, 0xFFD3A38E};
+                case CLOUDY:  return new int[] {0xFF353C5C, 0xFF5E5F82, 0xFF8C7F95, 0xFFB98F8A};
+                case FOG:     return new int[] {0xFF555B74, 0xFF7B7891, 0xFFA295A3, 0xFFC4A6A2};
+                case SNOW:    return new int[] {0xFF485274, 0xFF6F7299, 0xFF9C93B2, 0xFFC7A9AF};
+                case STORM:   return new int[] {0xFF20263A, 0xFF353A52, 0xFF4E4D63, 0xFF6A5F6C};
+                default:      return new int[] {0xFF303750, 0xFF474E68, 0xFF625F79, 0xFF85737F};    // rain
+            }
         }
+        if (look == NIGHT) {
+            switch (kind) {
+                case CLEAR:   return new int[] {0xFF0A0F27, 0xFF171D40, 0xFF2A305E};
+                case PARTLY:  return new int[] {0xFF0E1433, 0xFF1D2350, 0xFF323868};
+                case CLOUDY:  return new int[] {0xFF161A2E, 0xFF242942, 0xFF353A57};
+                case FOG:     return new int[] {0xFF20242D, 0xFF2E333D, 0xFF40454F};
+                case SNOW:    return new int[] {0xFF1A2236, 0xFF2A344E, 0xFF3D4965};
+                case STORM:   return new int[] {0xFF0C101C, 0xFF171C2C, 0xFF232A3B};
+                default:      return new int[] {0xFF121826, 0xFF1D2536, 0xFF2B3446};    // rain
+            }
+        }
+        switch (kind) {
+            case CLEAR:   return new int[] {0xFF2C5BA4, 0xFF4A81C3, 0xFF9DC1E5};
+            case PARTLY:  return new int[] {0xFF3762A4, 0xFF5889C2, 0xFFA2BFDD};
+            case CLOUDY:  return new int[] {0xFF4B5E76, 0xFF6C8097, 0xFF9AACBE};
+            case FOG:     return new int[] {0xFF636E7C, 0xFF85909E, 0xFFAEB7C1};
+            case DRIZZLE: return new int[] {0xFF465469, 0xFF5D6B80, 0xFF7C899B};
+            case RAIN:    return new int[] {0xFF3A4557, 0xFF4F5B6E, 0xFF6B7788};
+            case HEAVY:   return new int[] {0xFF303A4A, 0xFF445062, 0xFF5D697A};
+            case SNOW:    return new int[] {0xFF5A6D87, 0xFF7D90A9, 0xFFAEBED0};
+            default:      return new int[] {0xFF242C39, 0xFF374152, 0xFF4E5969};    // storm
+        }
+    }
+
+    /**
+     * The glass on this sky (Scene's tint): the sky's own color a shade deeper, as Apple's cards; drawn at about 45%
+     * over the frosted sky.
+     */
+    static int glass(int kind, int look) {
+        int top = colors(kind, look)[0];
+        int r = Math.round(((top >> 16) & 255) * 0.85f), g = Math.round(((top >> 8) & 255) * 0.85f),
+                b = Math.round((top & 255) * 0.9f);
+        return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 
     /** The sky is drawn this small: blurring it is cheap, and it's all soft shapes anyway. */
@@ -72,25 +121,25 @@ final class WeatherSky {
     private static final int[] CITY_LIGHTS = {0xFFFFA94D, 0xFFFF5E5B, 0xFF4FD1C5, 0xFFFFE8C2, 0xFF5B8CFF, 0xFFFFC857};
 
     /** Builds the sky (slow: call it off the UI thread). */
-    static Shader make(int width, int height, int kind, boolean night) {
+    static Shader make(int width, int height, int kind, int look) {
         int w = Math.max(2, width), h = Math.max(2, height);
-        Random rnd = new Random(kind * 31 + (night ? 7 : 3));
+        Random rnd = new Random(kind * 31 + look * 7 + 3);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG | Paint.FILTER_BITMAP_FLAG);
-        return finish(paint(kind, night, rnd), p, rnd, w, h, h / 1080f, kind, night);
+        return finish(paint(kind, look, rnd), p, rnd, w, h, h / 1080f, kind, look);
     }
 
     /**
      * The screensaver's background: the same sky behind heavy frosted glass, dimmed for a dark room (a little less at
      * night, when the sky is dark already). Slow: call it off the UI thread.
      */
-    static Bitmap frosted(int width, int height, int kind, boolean night) {
+    static Bitmap frosted(int width, int height, int kind, int look) {
         int w = Math.max(2, width), h = Math.max(2, height);
-        Random rnd = new Random(kind * 31 + (night ? 7 : 3));
-        Bitmap small = paint(kind, night, rnd);
+        Random rnd = new Random(kind * 31 + look * 7 + 3);
+        Bitmap small = paint(kind, look, rnd);
         int[] px = new int[SW * SH];
         small.getPixels(px, 0, SW, 0, 0, SW, SH);
         blur(px, 6, 3);
-        mix(px, 0xFF05070D, night ? 0.1f : 0.28f);
+        mix(px, 0xFF05070D, look == NIGHT ? 0.08f : 0.15f);
         small.setPixels(px, 0, SW, 0, 0, SW, SH);
         Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
         new Canvas(out).drawBitmap(small, null, new Rect(0, 0, w, h),
@@ -101,9 +150,9 @@ final class WeatherSky {
     }
 
     /** The sky blurred hard, small (SW × SH): what the glass shows on Android 8 to 12 (Scene.setLegacyFrost). */
-    static Bitmap frost(int kind, boolean night) {
-        Random rnd = new Random(kind * 31 + (night ? 7 : 3));
-        Bitmap small = paint(kind, night, rnd);
+    static Bitmap frost(int kind, int look) {
+        Random rnd = new Random(kind * 31 + look * 7 + 3);
+        Bitmap small = paint(kind, look, rnd);
         int[] px = new int[SW * SH];
         small.getPixels(px, 0, SW, 0, 0, SW, SH);
         blur(px, 6, 3);
@@ -111,41 +160,50 @@ final class WeatherSky {
         return small;
     }
 
-    /** The sky itself, small (SW × SH): the gradient, the sun or moon glow, clouds, fog, city lights in the rain. */
-    private static Bitmap paint(int kind, boolean night, Random rnd) {
+    /**
+     * The sky itself, small (SW × SH): the gradient, the sun's glow (low and warm at dusk), cirrus wisps on a clear
+     * sky, clouds, fog, city lights in the rain at night.
+     */
+    private static Bitmap paint(int kind, int look, Random rnd) {
+        boolean night = look == NIGHT, dusk = look == DUSK;
         Bitmap small = Bitmap.createBitmap(SW, SH, Bitmap.Config.ARGB_8888);
         Canvas sc = new Canvas(small);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG | Paint.FILTER_BITMAP_FLAG);
-        int[] sky = colors(kind, night);
+        int[] sky = colors(kind, look);
         p.setShader(new LinearGradient(0, 0, 0, SH, sky, null, Shader.TileMode.CLAMP));
         sc.drawRect(0, 0, SW, SH, p);
+        // Clouds: white by day, lavender-rose at dusk, lavender-gray at night (as Apple's).
+        int cloud = dusk ? 0xFFB9A3C6 : night ? 0xFF474A75 : 0xFFFFFFFF;
 
         if (kind == CLEAR || kind == PARTLY) {
-            // The sun (or the moon's glow) at the top right.
-            float a = night ? 0.18f : 0.75f;
-            glow(sc, p, SW * 0.84f, SH * 0.06f, SW * 0.55f, night ? 0xFFB8C8FF : 0xFFFFF4DC, a);
-            if (!night) glow(sc, p, SW * 0.84f, SH * 0.06f, SW * 0.12f, 0xFFFFFFFF, 0.9f);
+            if (dusk) {
+                glow(sc, p, SW * 0.7f, SH * 1.02f, SW * 0.6f, 0xFFFFC9A2, 0.45f);  // the sun just under the horizon
+            } else if (!night) {
+                glow(sc, p, SW * 0.84f, SH * 0.06f, SW * 0.5f, 0xFFFFF4DC, 0.5f);
+                glow(sc, p, SW * 0.84f, SH * 0.06f, SW * 0.1f, 0xFFFFFFFF, 0.8f);
+            }
+            cirrus(sc, p, rnd, night ? 0xFF8A8FC0 : dusk ? 0xFFE8D4E4 : 0xFFFFFFFF, night ? 0.14f : 0.26f);
         }
-        if (kind == PARTLY) clouds(sc, p, rnd, 4, night ? 0xFF3C4A68 : 0xFFFFFFFF, night ? 0.75f : 0.85f, 0.05f, 0.45f);
+        if (kind == PARTLY) clouds(sc, p, rnd, 4, cloud, night ? 0.75f : 0.8f, 0.05f, 0.45f);
         if (kind == CLOUDY) {
-            clouds(sc, p, rnd, 5, night ? 0xFF283143 : 0xFFB6C3D0, 0.8f, -0.05f, 0.35f);
-            clouds(sc, p, rnd, 6, night ? 0xFF3A4458 : 0xFFF3F6F9, night ? 0.6f : 0.85f, 0.1f, 0.7f);
+            clouds(sc, p, rnd, 5, night ? 0xFF2A2F48 : dusk ? 0xFF6E6788 : 0xFF8597AA, 0.8f, -0.05f, 0.35f);
+            clouds(sc, p, rnd, 6, cloud, night ? 0.55f : 0.6f, 0.1f, 0.7f);
         }
-        if (kind == SNOW) clouds(sc, p, rnd, 6, night ? 0xFF46536B : 0xFFF5F8FB, 0.6f, -0.05f, 0.4f);
+        if (kind == SNOW) clouds(sc, p, rnd, 6, cloud, 0.5f, -0.05f, 0.4f);
         if (kind == STORM) {
-            clouds(sc, p, rnd, 7, night ? 0xFF1A2030 : 0xFF6E7A8A, 0.85f, -0.08f, 0.4f);
-            clouds(sc, p, rnd, 4, night ? 0xFF2A3346 : 0xFFA9B3BF, 0.6f, 0.15f, 0.6f);
+            clouds(sc, p, rnd, 7, night ? 0xFF161A28 : 0xFF2A303C, 0.85f, -0.08f, 0.4f);
+            clouds(sc, p, rnd, 4, night ? 0xFF2A3044 : 0xFF566170, 0.6f, 0.15f, 0.6f);
         }
         if (kind == FOG) {
             for (int i = 0; i < 7; i++) {
                 float y = SH * (0.2f + i * 0.12f + rnd.nextFloat() * 0.05f);
                 p.setShader(new LinearGradient(0, y - SH * 0.08f, 0, y + SH * 0.08f,
-                        new int[] {0, Ui.alpha(night ? 0xFF5A626E : 0xFFFFFFFF, 0.55f), 0}, null, Shader.TileMode.CLAMP));
+                        new int[] {0, Ui.alpha(night ? 0xFF5A626E : 0xFFD5DAE0, 0.4f), 0}, null, Shader.TileMode.CLAMP));
                 sc.drawRect(0, y - SH * 0.08f, SW, y + SH * 0.08f, p);
             }
         }
         if (wet(kind)) {
-            clouds(sc, p, rnd, 5, night ? 0xFF2A3548 : 0xFFE2E8EE, 0.55f, -0.05f, 0.5f);
+            clouds(sc, p, rnd, 5, night ? 0xFF2A3548 : dusk ? 0xFF5E5A72 : 0xFF6F7B8C, 0.55f, -0.05f, 0.5f);
             if (night) {
                 for (int i = 0; i < 40; i++) {
                     float x = rnd.nextFloat() * SW, y = SH * (0.35f + rnd.nextFloat() * 0.65f), r = 3 + rnd.nextFloat() * 11;
@@ -158,14 +216,15 @@ final class WeatherSky {
     }
 
     /** Softens the small sky, frosts it when wet, scales it up with grain, and adds stars or the drops on the glass. */
-    private static Shader finish(Bitmap small, Paint p, Random rnd, int w, int h, float k, int kind, boolean night) {
+    private static Shader finish(Bitmap small, Paint p, Random rnd, int w, int h, float k, int kind, int look) {
+        boolean night = look == NIGHT;
         int[] px = new int[SW * SH];
         small.getPixels(px, 0, SW, 0, 0, SW, SH);
         blur(px, 2, 2);
         int[] sharp = px.clone();   // what the drops show
         if (wet(kind)) {
             blur(px, 5, 2);         // the frosted glass
-            mix(px, night ? 0xFF1A2638 : 0xFFEEF2F6, night ? 0.1f : 0.3f);
+            mix(px, night ? 0xFF1A2638 : 0xFF8E9AAA, night ? 0.1f : 0.12f);
         }
         small.setPixels(px, 0, SW, 0, 0, SW, SH);
 
@@ -175,6 +234,8 @@ final class WeatherSky {
         grain(out, wet(kind) ? (night ? 6f : 4.5f) : 1.5f, rnd);
 
         if (night && (kind == CLEAR || kind == PARTLY)) stars(c, p, rnd, w, h, k, kind == CLEAR ? 220 : 90);
+        // The moon at dusk and at night, high on the left (above the clock), as Apple's: when the sky is clear enough.
+        if (look != DAY && (kind == CLEAR || kind == PARTLY || kind == CLOUDY)) moon(c, p, w * 0.075f, h * 0.13f, 46 * k, rnd);
         if (wet(kind)) {
             small.setPixels(sharp, 0, SW, 0, 0, SW, SH);
             glass(c, p, small, rnd, w, h, k, night, kind == DRIZZLE ? 60 : kind == RAIN ? 85 : 110);
@@ -200,6 +261,34 @@ final class WeatherSky {
                 glow(c, p, cx + dx, cy + dy, Math.max(4, r), color, a);
             }
         }
+    }
+
+    /** Long thin streaks of high cloud, slightly tilted, in the upper sky (softened by the blur that follows). */
+    private static void cirrus(Canvas c, Paint p, Random rnd, int color, float a) {
+        p.setShader(null);
+        for (int i = 0; i < 16; i++) {
+            float cx = rnd.nextFloat() * SW * 1.1f - SW * 0.05f, cy = SH * (0.04f + rnd.nextFloat() * 0.55f);
+            float len = SW * (0.12f + rnd.nextFloat() * 0.3f), thick = 1.2f + rnd.nextFloat() * 2.4f;
+            c.save();
+            c.rotate(-8 - rnd.nextFloat() * 8, cx, cy);
+            p.setColor(Ui.alpha(color, a * (0.5f + rnd.nextFloat() * 0.5f)));
+            c.drawOval(cx - len / 2, cy - thick / 2, cx + len / 2, cy + thick / 2, p);
+            // A fainter, wider veil along each streak.
+            p.setColor(Ui.alpha(color, a * 0.25f));
+            c.drawOval(cx - len * 0.6f, cy - thick * 2, cx + len * 0.6f, cy + thick * 2, p);
+            c.restore();
+        }
+    }
+
+    /** A soft gray-white moon, lit from the top left, its edge melting into a faint halo. */
+    private static void moon(Canvas c, Paint p, float x, float y, float r, Random rnd) {
+        p.setShader(new RadialGradient(x, y, r * 2.8f, new int[] {Ui.alpha(0xFFE6E8F2, 0.2f), Ui.alpha(0xFFE6E8F2, 0.06f), 0},
+                new float[] {0, 0.45f, 1}, Shader.TileMode.CLAMP));
+        c.drawCircle(x, y, r * 2.8f, p);
+        p.setShader(new RadialGradient(x - r * 0.3f, y - r * 0.3f, r * 1.4f,
+                new int[] {0xFFF4F4F7, 0xFFD9DBE3, 0xFFAEB2C0}, new float[] {0, 0.55f, 1}, Shader.TileMode.CLAMP));
+        c.drawCircle(x, y, r, p);
+        p.setShader(null);
     }
 
     private static void stars(Canvas c, Paint p, Random rnd, int w, int h, float k, int count) {

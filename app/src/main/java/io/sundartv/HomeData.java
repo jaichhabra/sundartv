@@ -427,12 +427,19 @@ final class HomeData {
     }
 
     /** "+1.2%" / "−0.8%" (a real minus sign); "+1,2 %" in the languages that space the percent sign. */
+    /** A 24 h change that shows as 0.0% (under 0.05% either way). */
+    static boolean flat(double v) {
+        return Math.abs(v) < 0.05;
+    }
+
     static String change(double v) {
         if (Double.isNaN(v)) return "";
         return Ui.once("change", v, () -> {
             NumberFormat f = NumberFormat.getPercentInstance(locale());
             f.setMinimumFractionDigits(1);
             f.setMaximumFractionDigits(1);
+            // What rounds to 0.0% is flat: no sign ("−0.0%" read as a loss).
+            if (flat(v)) return f.format(0);
             return (v >= 0 ? "+" : "−") + f.format(Math.abs(v) / 100);
         });
     }

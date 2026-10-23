@@ -173,6 +173,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private long skyFrameAt;
     // The sky blurred hard, for the glass on Android 8 to 12 (Scene.setLegacyFrost), by day and at night.
     private Bitmap skyFrostDay, skyFrostNight;
+    // The glass's tint on this sky (a shade deeper than the sky, as Apple's cards), and whether it's the dusk one.
+    private int skyGlassDay = 0xFF1A2B5C, skyGlassNight = 0xFF1A2B5C;
+    private boolean skyDusk;
 
     // Shelf
     private List<HomeApps.Item> shelf = new ArrayList<>();
@@ -378,6 +381,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             checkNight(true);
             updatePicks();      // three new ones every hour
             updatePills();
+            updateSky();        // the dusk gradient starts about an hour before sunset
             handler.postDelayed(this, 15_000);
         }
     };
@@ -1033,7 +1037,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         float shade = tone(blue ? 1 : 0, 0.8f);
         lClock.setColor(ink);
         for (Paint p : new Paint[] {lDate, lWeather, lClockQuote, staleQuote}) p.setColor(sub);
-        for (Paint p : new Paint[] {lDate, lClock, lWeather, lClockQuote, staleQuote}) {
+        lTip.setColor(ink);     // a top button's name, under it
+        for (Paint p : new Paint[] {lDate, lClock, lWeather, lClockQuote, staleQuote, lTip}) {
             if (shade < 0.01f) p.clearShadowLayer();
             else p.setShadowLayer(18 * k, 0, 2 * k, Ui.alpha(0xFF0B2545, 0.38f * shade));
         }
@@ -1240,7 +1245,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         shadow.setColor(tone(0x1F000000, 0x52000000));
         shadows.draw(c, tmp, radius, SHADOW_BLUR * k, shadow);
         // White glass by day; smoked glass at night.
-        scene.liquid(c, platterRect, radius, tone(0xFFFFFFFF, SMOKE), tone(0.42f, 0.12f), tone(0.03f, 0.08f),
+        // On the weather sky: the sky's own glass, as the drawer's cards.
+        scene.liquid(c, platterRect, radius, blueDay() ? skyGlass() : tone(0xFFFFFFFF, SMOKE),
+                blueDay() ? 0.45f : tone(0.42f, 0.12f), tone(0.03f, 0.08f),
                 tone(30, 34) * k, tone(22, 28) * k, tone(0.65f, 0.95f), 1);
     }
 
@@ -1565,12 +1572,40 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (!shelf.isEmpty() && drawerIndex < drawerRects.length) shelfIndex = nearest(tileRects, drawerRects[drawerIndex].centerX());
     }
 
-    /** Color for the drawer's text and symbols: dark by day, white at night. */
-    private int drawerInk(float alpha) {
-        return Ui.alpha(tone(L_INK, 0xFFFFFFFF), alpha);
+    // Apple Weather's look on the weather sky (no photo): the glass is a shade deeper than the sky (its own color, over
+    // the frosted sky), and all the text is white, the secondary text a dimmed white, as at night.
+    private int skyGlass() {
+        return blend(skyGlassDay, skyGlassNight, dark());
     }
 
-    /** Glass for a drawer card or button: white by day, smoked at night (both during the transition). */
+    private boolean blueDay() {
+        return !picksOn() && skyKind != WeatherSky.NONE && WeatherSky.blue(skyKind);
+    }
+
+    /** 1 = white text on the glass (a blue day, or night), 0 = dark text on white glass (a pale day). */
+    private float whiteText() {
+        return blueDay() ? 1 : dark();
+    }
+
+    /** The color on the glass: `onWhite` on white glass, `onDark` on the blue or smoked glass. */
+    private int glassTone(int onWhite, int onDark) {
+        return blend(onWhite, onDark, whiteText());
+    }
+
+    /** Color for the drawer's text and symbols: dark on white glass, white on the blue or smoked glass. */
+    private int drawerInk(float alpha) {
+        return Ui.alpha(glassTone(L_INK, 0xFFFFFFFF), alpha);
+    }
+
+    /** A weather symbol on the glass: a yellow sun on blue glass, as in Apple Weather; otherwise the text's color. */
+    private int weatherInk(int code, boolean day, float alpha) {
+        return blueDay() && day && code >= 0 && code <= 1 ? 0xFFFFD60A : drawerInk(alpha);
+    }
+
+    /**
+     * Glass for a drawer card or button: white by day (blue, a shade darker than the sky, on a blue day), smoked at
+     * night (both during the transition).
+     */
     private void drawerGlass(Canvas c, RectF r, float radius, float lightTint, int shadowColor, float drop) {
         float dk = dark();
         if (dk < 0.999f) {
@@ -1578,9 +1613,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             tmp.offset(0, drop);
             shadow.setColor(Ui.alpha(shadowColor, 1 - dk));
             shadows.draw(c, tmp, radius, SHADOW_BLUR * k, shadow);
-            scene.glass(c, r, radius, 0xFFFFFFFF, lightTint, 0, 0, 0.02f, 1, 1 - dk);
+            boolean blue = blueDay();
+            scene.glass(c, r, radius, blue ? skyGlass() : 0xFFFFFFFF, blue ? 0.45f : lightTint, 0, 0, 0.02f, 1, 1 - dk);
         }
-        if (dk > 0.001f) scene.glass(c, r, radius, SMOKE, 0.4f, 0, 0, 0.02f, 1, dk);
+        if (dk > 0.001f) scene.glass(c, r, radius, blueDay() ? skyGlass() : SMOKE, blueDay() ? 0.45f : 0.4f, 0, 0, 0.02f, 1, dk);
     }
 
     private void drawerCard(Canvas c, RectF r) {
@@ -1589,13 +1625,18 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     private void drawDrawer(Canvas c) {
         if (drawerItems.isEmpty()) return;
-        rowTitle.setColor(tone(L_DIM, 0xB3FFFFFF));
-        cardTitle.setColor(tone(L_DIM, 0xB3FFFFFF));
+        // As Apple Weather: white text, the secondary text (titles, hours, the low, sunrise) a dimmed white; dark
+        // text only on the white glass of a pale day. "Inputs" and "Shortcuts" sit on the sky: a soft shadow there.
+        float white = whiteText();
+        rowTitle.setColor(glassTone(0xFF2E3A48, 0xD9FFFFFF));
+        if (white < 0.01f) rowTitle.clearShadowLayer();
+        else rowTitle.setShadowLayer(16 * k, 0, 2 * k, Ui.alpha(0xFF0B2545, 0.3f * white));
+        cardTitle.setColor(glassTone(0xFF3A4656, 0xA6FFFFFF));
         cardText.setColor(drawerInk(0.95f));
-        cardDim.setColor(tone(L_DIM, 0xADFFFFFF));
-        cardDimRight.setColor(tone(L_FAINT, 0x99FFFFFF));
+        cardDim.setColor(glassTone(0xFF465263, 0x99FFFFFF));
+        cardDimRight.setColor(glassTone(0xFF566273, 0x8CFFFFFF));
         bigTemp.setColor(drawerInk(1));
-        hourPaint.setColor(tone(L_DIM, 0xADFFFFFF));
+        hourPaint.setColor(glassTone(0xFF465263, 0xCCFFFFFF));
         hourTemp.setColor(drawerInk(0.95f));
         pricePaint.setColor(drawerInk(0.95f));
         float titleBase = ROW_TITLE * k;
@@ -1630,7 +1671,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             c.drawRoundRect(cell, r, r, fill);
         }
         boolean off = it.kind == HomeApps.INPUT && !it.connected;
-        int ink = blend(tone(off ? 0xFF8E8E93 : L_INK, off ? 0x6BFFFFFF : 0xF2FFFFFF), INK, f);
+        int ink = blend(glassTone(off ? 0xFF8E8E93 : L_INK, off ? 0x6BFFFFFF : 0xF2FFFFFF), INK, f);
         Symbols.draw(getContext(), c, it.symbol, cx, cell.top + cell.height() * 0.4f, 34 * k * s, ink);
         drawerLabel.setColor(ink);
         drawerLabel.setTextSize(23 * k * s);
@@ -1661,19 +1702,20 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         }
         String symbol = Symbols.weather(wx.code, wx.isDay);
         float sw = Symbols.width(getContext(), symbol, 52 * k);
-        Symbols.draw(getContext(), c, symbol, x + sw / 2, r.top + 132 * k, 52 * k, drawerInk(0.95f));
+        Symbols.draw(getContext(), c, symbol, x + sw / 2, r.top + 132 * k, 52 * k, weatherInk(wx.code, wx.isDay, 0.95f));
         c.drawText(nowTemp, x + sw + 18 * k - Ui.leftBearing(bigTemp, nowTemp), r.top + 170 * k, bigTemp);
         c.drawText(HomeData.condition(wx.code, wx.isDay), x, r.top + 220 * k, cardText);
         c.drawText(highLow, x, r.top + 258 * k, cardDim);
         float split = r.left + 392 * k;
         fill.setShader(null);
-        fill.setColor(tone(0x1A000000, 0x24FFFFFF));
+        fill.setColor(glassTone(0x1A000000, 0x24FFFFFF));
         c.drawRoundRect(split - k, r.top + 34 * k, split + k, r.bottom - 34 * k, k, k, fill);
         float hx = split + 30 * k, hw = (r.right - 30 * k - hx) / 6;
         for (int i = 0; i < wx.hours.size() && i < 6; i++) {
             float hc = hx + hw * (i + 0.5f);
             c.drawText(hourText[i], hc, r.top + 96 * k, hourPaint);
-            Symbols.draw(getContext(), c, Symbols.weather(wx.hourCode.get(i), wx.hourDay.get(i)), hc, r.top + 142 * k, 30 * k, drawerInk(0.9f));
+            Symbols.draw(getContext(), c, Symbols.weather(wx.hourCode.get(i), wx.hourDay.get(i)), hc, r.top + 142 * k, 30 * k,
+                    weatherInk(wx.hourCode.get(i), wx.hourDay.get(i), 0.9f));
             c.drawText(hourTempText[i], hc, r.top + 196 * k, hourTemp);
         }
         float sx = hx, base = r.top + 258 * k;
@@ -1713,7 +1755,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     private float sunItem(Canvas c, String symbol, String label, float x, float base) {
         float size = 22 * k, sw = Symbols.width(getContext(), symbol, size);
-        Symbols.draw(getContext(), c, symbol, x + sw / 2, base - Ui.halfCap(cardDim), size, tone(L_DIM, 0xB3FFFFFF));
+        Symbols.draw(getContext(), c, symbol, x + sw / 2, base - Ui.halfCap(cardDim), size, glassTone(L_DIM, 0xB3FFFFFF));
         c.drawText(label, x + sw + 10 * k, base, cardDim);
         return x + sw + 10 * k + cardDim.measureText(label);
     }
@@ -1731,7 +1773,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
      */
     private String drawerCardsKey() {
         return data.weatherAt + "|" + data.pricesAt + "|" + Prefs.version + "|" + Ui.language + "|"
-                + Float.floatToIntBits(dark()) + "|" + System.currentTimeMillis() / 60_000;
+                + Float.floatToIntBits(dark()) + "|" + blueDay() + "|" + System.currentTimeMillis() / 60_000;
     }
 
     /**
@@ -1773,17 +1815,21 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             int i = coins[j];
             float base = r.top + (110 + 52 * j) * k, mid = base - cap / 2;
             float gw = Glyphs.width(getContext(), HomeData.COINS[i], cap);
-            Glyphs.coin(getContext(), c, HomeData.COINS[i], x + 14 * k, mid, cap, tone(L_DIM, 0xCCFFFFFF));
+            Glyphs.coin(getContext(), c, HomeData.COINS[i], x + 14 * k, mid, cap, glassTone(L_DIM, 0xCCFFFFFF));
             c.drawText(HomeData.coinName(i), x + Math.max(gw, 28 * k) / 2 + 30 * k, base, cardText);
             c.drawText(priceText[i], right - 128 * k, base, pricePaint);
             double change = data.changes[i];
             if (Double.isNaN(change)) continue;
-            int color = change >= 0 ? tone(0xFF248A3D, UP_COLOR) : tone(0xFFD70015, DOWN_COLOR);
+            // On the sky's glass, the bright green and red made for dark backgrounds; flat: neither.
+            int color = HomeData.flat(change) ? glassTone(0xFF566273, 0xB3FFFFFF)
+                    : change > 0 ? glassTone(0xFF248A3D, UP_COLOR) : glassTone(0xFFD70015, DOWN_COLOR);
             tmp.set(right - 108 * k, mid - 17 * k, right, mid + 17 * k);
             fill.setShader(null);
-            fill.setColor(Ui.alpha(color, 0.2f));
+            // On the sky's glass a solid pill with white text, as Apple's Stocks (a tinted pill was lost on it).
+            boolean solid = blueDay();
+            fill.setColor(Ui.alpha(HomeData.flat(change) && solid ? 0xFF8E8E93 : color, solid ? 0.85f : 0.2f));
             c.drawRoundRect(tmp, 17 * k, 17 * k, fill);
-            changePaint.setColor(color);
+            changePaint.setColor(solid ? WHITE : color);
             c.drawText(changeText[i], tmp.centerX(), mid + Ui.halfCap(changePaint), changePaint);
         }
     }
@@ -2897,12 +2943,16 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
      */
     private void updateSky() {
         final int kind = WeatherSky.kind(data.weather);
-        if (kind == WeatherSky.NONE || kind == skyKind || kind == skyBuilding || w <= 0) return;
-        skyBuilding = kind;
+        // Around sunset and sunrise, both the day and the night sky are the dusk one (blue through lavender to peach).
+        final boolean dusk = WeatherSky.dusk(data.weather, System.currentTimeMillis());
+        int key = kind * 2 + (dusk ? 1 : 0);
+        if (kind == WeatherSky.NONE || (kind == skyKind && dusk == skyDusk) || key == skyBuilding || w <= 0) return;
+        skyBuilding = key;
         final int sw = w, sh = h;
+        final int dayLook = dusk ? WeatherSky.DUSK : WeatherSky.DAY, nightLook = dusk ? WeatherSky.DUSK : WeatherSky.NIGHT;
         new Thread(() -> {
-            Shader day = WeatherSky.make(sw, sh, kind, false), dark = WeatherSky.make(sw, sh, kind, true);
-            Bitmap frostDay = WeatherSky.frost(kind, false), frostNight = WeatherSky.frost(kind, true);
+            Shader day = WeatherSky.make(sw, sh, kind, dayLook), dark = WeatherSky.make(sw, sh, kind, nightLook);
+            Bitmap frostDay = WeatherSky.frost(kind, dayLook), frostNight = WeatherSky.frost(kind, nightLook);
             handler.post(() -> {
                 skyBuilding = WeatherSky.NONE;
                 if (sw != w || sh != h) return;
@@ -2910,6 +2960,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 nightGradient = dark;
                 skyFrostDay = frostDay;
                 skyFrostNight = frostNight;
+                skyGlassDay = WeatherSky.glass(kind, dayLook);
+                skyGlassNight = WeatherSky.glass(kind, nightLook);
+                skyDusk = dusk;
                 invalidateAll();    // the glass shows the new sky
                 skyKind = kind;
                 precip.set(kind, sw, sh);
@@ -3138,14 +3191,15 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             tmp.offset(0, (6 + 8 * f) * k);
             shadow.setColor(Ui.alpha(0xFF000000, tone(0.1f, 0.3f) + tone(0.14f, 0.2f) * f));
             shadows.draw(c, tmp, rad, SHADOW_BLUR * k, shadow);
-            scene.liquid(c, cell, rad, tone(0xFFFFFFFF, SMOKE), tone(0.55f, 0.5f), tone(0.02f, 0.01f), 12 * k, 8 * k,
-                    tone(0.6f, 0.45f), 1 - f);
+            // On the weather sky, Apple's buttons: the sky's glass with a white symbol.
+            scene.liquid(c, cell, rad, blueDay() ? skyGlass() : tone(0xFFFFFFFF, SMOKE), blueDay() ? 0.45f : tone(0.55f, 0.5f),
+                    tone(0.02f, 0.01f), 12 * k, 8 * k, tone(0.6f, 0.45f), 1 - f);
             if (f > 0.01f) {
                 fill.setShader(null);
                 fill.setColor(Ui.alpha(0xFFFFFFFF, f));
                 c.drawRoundRect(cell, rad, rad, fill);
             }
-            int ink = blend(tone(L_INK, 0xEBFFFFFF), L_INK, f);
+            int ink = blend(glassTone(L_INK, 0xEBFFFFFF), L_INK, f);
             if (pill) {
                 drawPillIcon(c, it.kind, cell.left + rad, cell.centerY(), 27 * k * s, ink);
                 pillText.setTextSize(25 * k * s);
