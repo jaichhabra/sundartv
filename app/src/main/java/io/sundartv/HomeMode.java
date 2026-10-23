@@ -311,6 +311,8 @@ final class HomeMode {
             check(adb.shell("cmd package set-home-activity " + HOME_ACTIVITY), "Success",
                     Ui.tr("Android didn't accept the new home screen"));
             adb.shell("settings put secure screensaver_components " + DREAM);
+            // Usage access, for For You's "the apps you use most" (read on the TV only; Original doesn't need it back).
+            adb.shell("appops set " + PKG + " GET_USAGE_STATS allow");
             JSONObject started = state(c);
             started.put("mode", FREE).put("homeReverted", false).put("setupHome", setupHome);
             save(c, started);

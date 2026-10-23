@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -138,6 +139,12 @@ final class Recs {
             listAt = cache.getLong("listAt", 0);
             listLanguage = cache.getString("language", cache.getBoolean("english", false) ? "en" : "pt");
             keyStamp = cache.getLong("keyStamp", 0);
+        } catch (Exception ignored) {
+        }
+        try {
+            String saved = history().getString("picks", null);
+            if (saved != null) personal = parse(new JSONArray(saved));
+            personalAt = history().getLong("at", 0);
         } catch (Exception ignored) {
         }
     }
@@ -264,6 +271,7 @@ final class Recs {
 
     /** With a key: fetches the list if stale or the time of day (morning/afternoon/night) changed; then the details. */
     void refreshIfStale() {
+        refreshForYou();
         if (!hasKey(context) || fetching) return;
         long now = System.currentTimeMillis();
         long stamp = sourceStamp();   // a new key, country, animation choice or installed streaming-app set refetches
@@ -385,10 +393,138 @@ final class Recs {
     List<Pick> wanted() {
         List<Pick> out = new ArrayList<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
+        List<Pick> mine = forYou();
+        for (int i = 0; i < Math.min(3, mine.size()); i++) if (seen.add(key(mine.get(i)))) out.add(mine.get(i));
         for (String kind : new String[] {null, "movie", "tv"}) {
             for (Pick p : now(kind)) if (seen.add(key(p))) out.add(p);
         }
         return out;
+    }
+
+    // MARK: - For You: more like what was opened from the home screen, on the TV's apps, the most used first
+
+    // Streaming apps don't share what they play, so this is what the TV can know: the titles opened from SundarTV's
+    // cards (kept on the TV only, in "history") and how long each app was used (Android's usage stats).
+    private static final int HISTORY = 8;
+    private static final long FOR_YOU_EVERY = 6 * 3600_000L;
+    private volatile List<Pick> personal = new ArrayList<>();
+    private volatile long personalAt;
+    private volatile boolean fetchingPersonal;
+    private volatile Map<String, Long> usage = new HashMap<>();
+    private volatile long usageAt;
+
+    private SharedPreferences history() {
+        return context.getSharedPreferences("history", Context.MODE_PRIVATE);
+    }
+
+    /** A title opened from a card: remembered (newest first, without repeats) to find more like it. */
+    void opened(Pick p) {
+        if (p == null) return;
+        try {
+            JSONArray old = new JSONArray(history().getString("opened", "[]"));
+            JSONArray a = new JSONArray().put(new JSONObject().put("kind", p.kind).put("id", p.id));
+            for (int i = 0; i < old.length() && a.length() < HISTORY; i++) {
+                JSONObject o = old.optJSONObject(i);
+                if (o != null && !(o.optString("kind").equals(p.kind) && o.optInt("id") == p.id)) a.put(o);
+            }
+            history().edit().putString("opened", a.toString()).apply();
+        } catch (Exception ignored) {
+        }
+        personalAt = 0;     // fetched again, with this title
+        refreshForYou();
+    }
+
+    /**
+     * The For You tab: titles like the last ones opened, only on the TV's apps; before anything was opened, this
+     * hour's picks. Either way the apps used most in the past two weeks come first.
+     */
+    List<Pick> forYou() {
+        if (!hasKey(context)) return new ArrayList<>();
+        Map<String, Boolean> have = new HashMap<>();
+        List<Pick> list = new ArrayList<>();
+        for (Pick p : personal) if (p.detailed && p.pkg != null && have.computeIfAbsent(p.pkg, this::installed)) list.add(p);
+        if (list.isEmpty()) list = all(null);
+        final Map<String, Long> use = usage();
+        // A stable sort: TMDB's order stays within each app.
+        Collections.sort(list, (a, b) -> Long.compare(use.getOrDefault(b.pkg, 0L), use.getOrDefault(a.pkg, 0L)));
+        return list.size() > MORE ? new ArrayList<>(list.subList(0, MORE)) : list;
+    }
+
+    /** Time in each app over the past two weeks (empty until usage access is granted), read at most every 10 minutes. */
+    private Map<String, Long> usage() {
+        long now = System.currentTimeMillis();
+        if (now >= usageAt && now - usageAt < 10 * 60_000L) return usage;
+        usageAt = now;
+        Map<String, Long> out = new HashMap<>();
+        try {
+            android.app.usage.UsageStatsManager m =
+                    (android.app.usage.UsageStatsManager) context.getSystemService(Context.USAGE_STATS_SERVICE);
+            for (Map.Entry<String, android.app.usage.UsageStats> e
+                    : m.queryAndAggregateUsageStats(now - 14 * 86_400_000L, now).entrySet()) {
+                out.put(e.getKey(), e.getValue().getTotalTimeInForeground());
+            }
+        } catch (RuntimeException ignored) {
+        }
+        usage = out;
+        return out;
+    }
+
+    /** Fetches For You again when it's old (or a title was just opened): TMDB's recommendations for the last 3. */
+    void refreshForYou() {
+        if (!hasKey(context) || fetchingPersonal) return;
+        long now = System.currentTimeMillis();
+        if (personalAt != 0 && now >= personalAt && now - personalAt < FOR_YOU_EVERY) return;
+        final JSONArray opened;
+        try {
+            opened = new JSONArray(history().getString("opened", "[]"));
+        } catch (Exception e) {
+            return;
+        }
+        if (opened.length() == 0) return;
+        fetchingPersonal = true;
+        io.execute(() -> {
+            try {
+                List<Pick> out = new ArrayList<>();
+                Set<String> seen = new HashSet<>();
+                for (int i = 0; i < opened.length(); i++) {
+                    JSONObject o = opened.optJSONObject(i);
+                    if (o != null) seen.add(o.optString("kind") + ":" + o.optInt("id"));
+                }
+                // Up to 4 from each of the last three, so one title doesn't fill the tab.
+                for (int i = 0; i < Math.min(3, opened.length()); i++) {
+                    JSONObject o = opened.getJSONObject(i);
+                    String kind = o.optString("kind");
+                    JSONArray rec = get("/" + kind + "/" + o.optInt("id") + "/recommendations?language=" + lang()).optJSONArray("results");
+                    List<Pick> candidates = new ArrayList<>();
+                    for (int j = 0; rec != null && j < rec.length() && j < 12; j++) add(candidates, rec.getJSONObject(j), kind);
+                    int taken = 0;
+                    for (Pick p : candidates) {
+                        if (taken >= 4 || out.size() >= MORE) break;
+                        if (!seen.add(key(p))) continue;
+                        try {
+                            fetchDetails(p);
+                        } catch (Exception e) {
+                            continue;
+                        }
+                        if (p.pkg != null) {
+                            out.add(p);
+                            taken++;
+                        }
+                    }
+                }
+                personal = out;
+                personalAt = System.currentTimeMillis();
+                JSONArray a = new JSONArray();
+                for (Pick p : out) a.put(json(p));
+                history().edit().putString("picks", a.toString()).putLong("at", personalAt).apply();
+            } catch (Exception e) {
+                personalAt = System.currentTimeMillis();    // tried: not again for a while
+                AppLog.w("for you: " + e.getMessage());
+            } finally {
+                fetchingPersonal = false;
+                notifyListeners();
+            }
+        });
     }
 
     /** Movies and shows are numbered separately on TMDB: a pick is identified by type + number. */
@@ -808,11 +944,7 @@ final class Recs {
     private void save() {
         try {
             JSONArray a = new JSONArray();
-            for (Pick p : picks) {
-                a.put(new JSONObject().put("id", p.id).put("kind", p.kind).put("title", p.title).put("backdrop", p.backdrop).put("link", p.link == null ? "" : p.link)
-                        .put("meta", p.meta).put("app", p.app == null ? "" : p.app).put("pkg", p.pkg == null ? "" : p.pkg)
-                        .put("overview", p.overview).put("detailed", p.detailed));
-            }
+            for (Pick p : picks) a.put(json(p));
             SharedPreferences.Editor e = cache.edit().putString("picks", a.toString()).putInt("period", period).putLong("listAt", listAt)
                     .putString("language", listLanguage)
                     .putLong("keyStamp", keyStamp).putInt("version", CACHE_VERSION);
@@ -823,6 +955,12 @@ final class Recs {
             e.apply();
         } catch (Exception ignored) {
         }
+    }
+
+    private static JSONObject json(Pick p) throws org.json.JSONException {
+        return new JSONObject().put("id", p.id).put("kind", p.kind).put("title", p.title).put("backdrop", p.backdrop).put("link", p.link == null ? "" : p.link)
+                .put("meta", p.meta).put("app", p.app == null ? "" : p.app).put("pkg", p.pkg == null ? "" : p.pkg)
+                .put("overview", p.overview).put("detailed", p.detailed);
     }
 
     private static List<Pick> parse(JSONArray a) {

@@ -53,8 +53,8 @@ Keep `sundartv.keystore`: updates must be signed with the same key.
 
 ## Trending picks (TMDB)
 
-With a free TMDB key, the home screen adds **For You**: trending movies and shows, only from streaming apps your
-TV already has, with three tabs (Explore, Movies, Shows) and fresh picks every hour. Each card shows the genre,
+With a free TMDB key, the home screen adds movies and shows, only from streaming apps your TV already has, in four
+tabs: **For You**, Explore, Movies and Shows, with fresh picks every hour. Each card shows the genre,
 runtime (or seasons) and the app it's on.
 
 - **More than three:** keep pressing right past the third card and more titles slide in (up to 12 per tab).
@@ -64,7 +64,19 @@ runtime (or seasons) and the app it's on.
 | --- | --- |
 | ![A card showing its synopsis](docs/screenshots/picks-synopsis.png) | ![More picks after sliding right](docs/screenshots/picks-more.png) |
 
-![Trending picks over the movie's art](docs/screenshots/picks-movie-art.png)
+### For You
+
+Streaming apps don't share what you watch, so For You uses what the TV itself can know:
+
+- **More like what you open:** the titles you open from SundarTV's cards are remembered (on the TV only) and TMDB's
+  recommendations for the last three fill the tab, only from your apps.
+- **Your apps first:** the apps you used most in the past two weeks come first (Android's usage stats; SundarTV
+  grants itself usage access when you switch it on).
+- Before you've opened anything, it shows this hour's picks from your most-used apps.
+
+For You always sits on the live weather sky.
+
+![For You after opening Cyberpunk: Edgerunners](docs/screenshots/for-you.png)
 
 **Get a key** (free, two minutes): create an account at [themoviedb.org](https://www.themoviedb.org), open
 Settings → API and request a developer key. Paste the **API Key** (or the API Read Access Token) after `tmdb_key=`
@@ -75,7 +87,7 @@ GitHub.
 
 | Setting | Options |
 | --- | --- |
-| Background | *Movie art* (the first pick's image) or *Weather sky* (the live sky, as without a key) |
+| Background | *Weather sky* (the default) or *Movie art* (the first pick's image), for Explore, Movies and Shows |
 | Screensaver | *Quotes* (the default) or *Movie photos* (a slideshow of the picks) |
 
 | Picks over the weather sky | Home Settings |

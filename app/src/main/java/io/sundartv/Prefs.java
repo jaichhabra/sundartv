@@ -113,9 +113,12 @@ final class Prefs {
 
     // MARK: - Background and screensaver (with picks on; without a TMDB key it's always the sky and the quotes)
 
-    /** The home screen behind the picks: the live weather sky (true) or the first pick's art (false). */
-    static boolean skyBackground() { return sp().getBoolean("skyBackground", false); }
-    static void setSkyBackground(boolean on) { put("skyBackground", on); }
+    /**
+     * The home screen behind the picks: the live weather sky (true, the default) or the first pick's art (false).
+     * The For You tab always has the sky.
+     */
+    static boolean skyBackground() { return !"art".equals(sp().getString("background", "sky")); }
+    static void setSkyBackground(boolean on) { put("background", on ? "sky" : "art"); }
 
     /** The screensaver: the quotes over the frosted sky (true, SundarTV's default) or the picks' photos (false). */
     static boolean quoteScreensaver() { return sp().getBoolean("quoteScreensaver", true); }
