@@ -146,6 +146,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     // Everything the tab can show (up to Recs.MORE): the three cards are a window on it that slides past either end.
     private List<Recs.Pick> allCards = new ArrayList<>();
     private int cardOffset;
+    private boolean picksPage;      // the recommendations page is open (see picksOn)
     // Held on a card for a moment, its synopsis rises over the picture: since when it's held, and how far it's up.
     private static final long EXPAND_MS = 1500;
     private long cardFocusAt;
@@ -445,6 +446,11 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         checkNotices();
         if (!again) reload();
         updatePalette();
+        // Coming back (from an app, or with Home) opens on the clock, not on the recommendations page.
+        if (picksPage) {
+            picksPage = false;
+            if (zone == Z_CARDS) zone = Z_SHELF;
+        }
         updatePicks();
         if (sheetOpen) closeSheet();
         sheet.snap(sheet.target);
@@ -2112,6 +2118,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         } else if (zone == Z_DRAWER || zone == WIDGETS) {
             closeDrawer();
             retarget(false);
+        } else if (picksPage) {
+            closePicks();
         } else if (zone != Z_SHELF) {
             zone = Z_SHELF;
             retarget(false);
@@ -2271,6 +2279,11 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 return;
             }
             it = lightButtons.get(topIndex - TABS);
+            if (it.kind == HomeApps.PICKS) {
+                click.open();
+                openPicks();
+                return;
+            }
             r = topRects[topIndex];
         } else if (zone == Z_CARDS) {
             Recs.Pick p = cardIndex < cards.size() ? cards.get(cardIndex) : null;
@@ -2791,7 +2804,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
      * cardOffset. The background is taken from the first card.
      */
     private void updateCards() {
-        List<Recs.Pick> list = tab == FOR_YOU ? recs.forYou() : recs.all(TAB_KIND[tab]);
+        List<Recs.Pick> list = !picksOn() ? new ArrayList<>() : tab == FOR_YOU ? recs.forYou() : recs.all(TAB_KIND[tab]);
         if (!samePicks(list, allCards)) allCards = list;
         cardOffset = Math.max(0, Math.min(cardOffset, list.size() - 3));
         List<Recs.Pick> window = new ArrayList<>(list.subList(cardOffset, Math.min(cardOffset + 3, list.size())));
@@ -2894,8 +2907,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             if (HomeData.coinCount() > 0) drawQuotes(c);
             return;
         }
-        String hello = "SundarTV";    // the page; For You is now the first tab
-        c.drawText(hello, MARGIN * k - Ui.leftBearing(lTitle, hello), L_TITLE_BASE * k, lTitle);
+        // The recommendations page: no title above the tabs (the tabs say what it is).
         // Text tabs (the selected one in bold, in the main text color); with focus on the tabs, the selected one gets
         // the white pill with a shadow and grows a little (the tvOS focus).
         float focus = Ui.clamp(topFocus[tab].value);
@@ -2927,8 +2939,35 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (HomeData.coinCount() > 0) drawQuotes(c);
     }
 
+    /**
+     * The recommendations page is open (the For You button; Back closes it). The home screen itself is always the
+     * clock and the weather over the sky, as without a TMDB key.
+     */
     private boolean picksOn() {
-        return Recs.hasKey(getContext());
+        return picksPage && Recs.hasKey(getContext());
+    }
+
+    private void openPicks() {
+        picksPage = true;
+        tab = FOR_YOU;
+        cardOffset = 0;
+        cardIndex = 0;
+        updateCards();
+        zone = cards.isEmpty() ? Z_TOP : Z_CARDS;
+        topIndex = tab;
+        cardFocusAt = SystemClock.uptimeMillis();
+        heroDirty = statusDirty = true;
+        invalidateAll();
+        retarget(false);
+    }
+
+    private void closePicks() {
+        picksPage = false;
+        updateCards();      // no cards: the sky comes back
+        zone = Z_SHELF;
+        heroDirty = statusDirty = true;
+        invalidateAll();
+        retarget(false);
     }
 
     private void drawClock(Canvas c) {
